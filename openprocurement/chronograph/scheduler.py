@@ -8,8 +8,8 @@ from json import dumps
 
 def check_tender(tender):
     changes = {'methodJustification': datetime.now().isoformat()}
-    next_check = datetime.utcfromtimestamp(time.time()) + timedelta(seconds=10)
-    return None, next_check
+    next_check = datetime.utcfromtimestamp(time.time()) + timedelta(seconds=60)
+    return None, None
 
 
 def push(url, params):
@@ -20,7 +20,6 @@ def resync_tender(scheduler, url, callback_url):
     r = requests.get(url)
     json = r.json()
     tender = json['data']
-    print tender
     changes, next_check = check_tender(tender)
     if changes:
         r = requests.patch(url,
