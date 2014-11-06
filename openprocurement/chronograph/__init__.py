@@ -38,7 +38,7 @@ def main(global_config, **settings):
                                     job_defaults=job_defaults,
                                     timezone=utc)
     config.registry.scheduler = scheduler
-    scheduler.remove_all_jobs()
+    #scheduler.remove_all_jobs()
     scheduler.start()
     resync_all_job = scheduler.get_job('resync_all')
     if not resync_all_job:

@@ -1,14 +1,25 @@
 # -*- coding: utf-8 -*-
 import requests
-from pytz import utc
-import time
 from datetime import datetime, timedelta
 from json import dumps
+from pytz import utc
+from time import time
 
 
 def check_tender(tender):
-    changes = {'methodJustification': datetime.now().isoformat()}
-    next_check = datetime.utcfromtimestamp(time.time()) + timedelta(seconds=60)
+    now = datetime.now().isoformat()
+    enquiryPeriodEnd = tender.get('enquiryPeriod', {}).get('endDate')
+    tenderPeriodEnd = tender.get('tenderPeriod', {}).get('endDate')
+    if tender['status'] == 'enquiries' and enquiryPeriodEnd and enquiryPeriodEnd < now:
+        return {'status': 'tendering'}, None
+    elif tender['status'] == 'tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
+        return {'status': 'auction'}, None
+    ts = time()
+    offset = datetime.fromtimestamp(ts) - datetime.utcfromtimestamp(ts)
+    if enquiryPeriodEnd and enquiryPeriodEnd > now:
+        return None, datetime.strptime(enquiryPeriodEnd, '%Y-%m-%dT%H:%M:%S.%f') - offset
+    elif tenderPeriodEnd and tenderPeriodEnd > now:
+        return None, datetime.strptime(tenderPeriodEnd, '%Y-%m-%dT%H:%M:%S.%f') - offset
     return None, None
 
 
@@ -41,14 +52,14 @@ def resync_tenders(scheduler, next_url, callback_url):
             if not json['data']:
                 break
             for tender in json['data'][:2]:
-                run_date = datetime.utcfromtimestamp(time.time())
+                run_date = datetime.utcfromtimestamp(time())
                 scheduler.add_job(push, 'date', run_date=run_date, timezone=utc,
                                   id=tender['id'],
                                   args=[callback_url + 'resync/' + tender['id'], None],
                                   replace_existing=True)
         except:
             break
-    run_date = datetime.utcfromtimestamp(time.time()) + timedelta(seconds=60)
+    run_date = datetime.utcfromtimestamp(time()) + timedelta(seconds=60)
     scheduler.add_job(push, 'date', run_date=run_date, timezone=utc,
                       id='resync_all',
                       args=[callback_url + 'resync_all', {'url': next_url}],
