@@ -51,7 +51,7 @@ def resync_tenders(scheduler, next_url, callback_url):
             next_url = json['next_page']['uri']
             if not json['data']:
                 break
-            for tender in json['data'][:2]:
+            for tender in json['data']:
                 run_date = datetime.utcfromtimestamp(time())
                 scheduler.add_job(push, 'date', run_date=run_date, timezone=utc,
                                   id=tender['id'],
