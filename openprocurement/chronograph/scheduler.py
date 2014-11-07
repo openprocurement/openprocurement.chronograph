@@ -10,11 +10,11 @@ def check_tender(tender):
     now = datetime.now().isoformat()
     enquiryPeriodEnd = tender.get('enquiryPeriod', {}).get('endDate')
     tenderPeriodEnd = tender.get('tenderPeriod', {}).get('endDate')
-    if tender['status'] == 'enquiries' and enquiryPeriodEnd and enquiryPeriodEnd < now:
-        return {'status': 'tendering'}, None
-    elif tender['status'] == 'tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
-        return {'status': 'auction'}, None
     ts = time()
+    if tender['status'] == 'enquiries' and enquiryPeriodEnd and enquiryPeriodEnd < now:
+        return {'status': 'tendering'}, datetime.utcfromtimestamp(ts)
+    elif tender['status'] == 'tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
+        return {'status': 'auction'}, datetime.utcfromtimestamp(ts)
     offset = datetime.fromtimestamp(ts) - datetime.utcfromtimestamp(ts)
     if enquiryPeriodEnd and enquiryPeriodEnd > now:
         return None, datetime.strptime(enquiryPeriodEnd, '%Y-%m-%dT%H:%M:%S.%f') - offset
