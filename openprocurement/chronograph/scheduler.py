@@ -2,24 +2,32 @@
 import requests
 from datetime import datetime, timedelta
 from json import dumps
-from pytz import utc
-from time import time
+from pytz import timezone
+from tzlocal import get_localzone
+from iso8601 import parse_date
+
+
+TZ = timezone(get_localzone().tzname(datetime.now()))
+
+
+def get_now():
+    return datetime.now(TZ)
 
 
 def check_tender(tender):
-    now = datetime.now().isoformat()
     enquiryPeriodEnd = tender.get('enquiryPeriod', {}).get('endDate')
+    enquiryPeriodEnd = enquiryPeriodEnd and parse_date(enquiryPeriodEnd, TZ)
     tenderPeriodEnd = tender.get('tenderPeriod', {}).get('endDate')
-    ts = time()
+    tenderPeriodEnd = tenderPeriodEnd and parse_date(tenderPeriodEnd, TZ)
+    now = get_now()
     if tender['status'] == 'enquiries' and enquiryPeriodEnd and enquiryPeriodEnd < now:
-        return {'status': 'tendering'}, datetime.utcfromtimestamp(ts)
+        return {'status': 'tendering'}, now + timedelta(seconds=5)
     elif tender['status'] == 'tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
-        return {'status': 'auction'}, datetime.utcfromtimestamp(ts)
-    offset = datetime.fromtimestamp(ts) - datetime.utcfromtimestamp(ts)
+        return {'status': 'auction'}, now + timedelta(seconds=5)
     if enquiryPeriodEnd and enquiryPeriodEnd > now:
-        return None, datetime.strptime(enquiryPeriodEnd, '%Y-%m-%dT%H:%M:%S.%f') - offset
+        return None, enquiryPeriodEnd
     elif tenderPeriodEnd and tenderPeriodEnd > now:
-        return None, datetime.strptime(tenderPeriodEnd, '%Y-%m-%dT%H:%M:%S.%f') - offset
+        return None, tenderPeriodEnd
     return None, None
 
 
@@ -37,7 +45,7 @@ def resync_tender(scheduler, url, callback_url):
                            data=dumps({'data': changes}),
                            headers={'Content-Type': 'application/json'})
     if next_check:
-        scheduler.add_job(push, 'date', run_date=next_check, timezone=utc,
+        scheduler.add_job(push, 'date', run_date=next_check, timezone=TZ,
                           id=tender['id'],
                           args=[callback_url, None], replace_existing=True)
     return changes, next_check
@@ -52,15 +60,15 @@ def resync_tenders(scheduler, next_url, callback_url):
             if not json['data']:
                 break
             for tender in json['data']:
-                run_date = datetime.utcfromtimestamp(time())
-                scheduler.add_job(push, 'date', run_date=run_date, timezone=utc,
+                run_date = get_now() + timedelta(seconds=5)
+                scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
                                   id=tender['id'],
                                   args=[callback_url + 'resync/' + tender['id'], None],
                                   replace_existing=True)
         except:
             break
-    run_date = datetime.utcfromtimestamp(time()) + timedelta(seconds=60)
-    scheduler.add_job(push, 'date', run_date=run_date, timezone=utc,
+    run_date = get_now() + timedelta(seconds=60)
+    scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
                       id='resync_all',
                       args=[callback_url + 'resync_all', {'url': next_url}],
                       replace_existing=True)

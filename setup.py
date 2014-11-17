@@ -13,6 +13,7 @@ requires = [
     'couchdb',
     'apscheduler',
     'requests',
+    'iso8601',
 ]
 
 setup(name='openprocurement.chronograph',
@@ -30,7 +31,7 @@ setup(name='openprocurement.chronograph',
       url='',
       keywords='web pyramid pylons',
       packages=find_packages(),
-      namespace_packages = ['openprocurement'],
+      namespace_packages=['openprocurement'],
       include_package_data=True,
       zip_safe=False,
       install_requires=requires,

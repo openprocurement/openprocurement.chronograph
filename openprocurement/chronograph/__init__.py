@@ -5,8 +5,11 @@ from datetime import datetime, timedelta
 from openprocurement.chronograph.jobstores import CouchDBJobStore
 from openprocurement.chronograph.scheduler import push
 from pyramid.config import Configurator
-from pytz import utc
-from time import time
+from pytz import timezone
+from tzlocal import get_localzone
+
+
+TZ = timezone(get_localzone().tzname(datetime.now()))
 
 
 def main(global_config, **settings):
@@ -36,14 +39,14 @@ def main(global_config, **settings):
     scheduler = BackgroundScheduler(jobstores=jobstores,
                                     executors=executors,
                                     job_defaults=job_defaults,
-                                    timezone=utc)
+                                    timezone=TZ)
     config.registry.scheduler = scheduler
-    #scheduler.remove_all_jobs()
+    # scheduler.remove_all_jobs()
     scheduler.start()
     resync_all_job = scheduler.get_job('resync_all')
     if not resync_all_job:
-        run_date = datetime.utcfromtimestamp(time()) + timedelta(seconds=60)
-        scheduler.add_job(push, 'date', run_date=run_date, timezone=utc,
+        run_date = datetime.now(TZ) + timedelta(seconds=60)
+        scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
                           id='resync_all',
                           args=[settings.get('callback.url') + 'resync_all', None],
                           replace_existing=True)
