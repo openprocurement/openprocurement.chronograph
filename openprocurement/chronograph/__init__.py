@@ -22,8 +22,12 @@ def main(global_config, **settings):
     config.scan()
     server = Server(settings.get('couchdb.url'))
     config.registry.couchdb_server = server
+    db_name = settings['couchdb.db_name']
+    if db_name not in server:
+        server.create(db_name)
+    config.registry.db = server[db_name]
     jobstores = {
-        'default': CouchDBJobStore(database=settings['couchdb.db_name'],
+        'default': CouchDBJobStore(database=db_name,
                                    client=server)
     }
     executors = {
@@ -49,5 +53,5 @@ def main(global_config, **settings):
         scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
                           id='resync_all',
                           args=[settings.get('callback.url') + 'resync_all', None],
-                          replace_existing=True)
+                          replace_existing=True, misfire_grace_time=60 * 60)
     return config.make_wsgi_app()

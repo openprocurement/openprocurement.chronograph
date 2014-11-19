@@ -25,4 +25,5 @@ def resync(request):
     tid = request.matchdict['id']
     resync_tender(request.registry.scheduler,
                   request.registry.api_url + 'api/0/tenders/' + tid,
-                  request.registry.callback_url + 'resync/' + tid)
+                  request.registry.callback_url + 'resync/' + tid,
+                  request.registry.db)
