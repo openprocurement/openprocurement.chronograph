@@ -35,8 +35,7 @@ def set_date(plan, date, time):
     plan[date.isoformat()] = time.isoformat()
 
 
-def calc_auction_end_time(tender, start):
-    bids = len(tender.get('bids', []))
+def calc_auction_end_time(bids, start):
     end = start + bids * BIDDER_TIME + SERVICE_TIME + MIN_PAUSE
     seconds = (end - datetime.combine(end, WORKING_DAY_START)).seconds
     roundTo = ROUNDING.seconds
