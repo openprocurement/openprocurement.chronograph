@@ -15,6 +15,7 @@ ROUNDING = timedelta(minutes=15)
 MIN_PAUSE = timedelta(minutes=5)
 BIDDER_TIME = timedelta(minutes=6)
 SERVICE_TIME = timedelta(minutes=9)
+STAND_STILL_TIME = timedelta(days=10)
 
 
 def get_now():
@@ -76,11 +77,16 @@ def check_tender(tender, db):
     tenderPeriodEnd = tender.get('tenderPeriod', {}).get('endDate')
     tenderPeriodEnd = tenderPeriodEnd and parse_date(
         tenderPeriodEnd, TZ).astimezone(TZ)
+    awardPeriodEnd = tender.get('awardPeriod', {}).get('endDate')
+    awardPeriodEnd = awardPeriodEnd and parse_date(awardPeriodEnd, TZ).astimezone(TZ)
     now = get_now()
     if tender['status'] == 'active.enquiries' and enquiryPeriodEnd and enquiryPeriodEnd < now:
         return {'status': 'active.tendering'}, now
     elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
-        return {'status': 'active.auction'}, now
+        if not tender.get('bids', []):
+            return {'status': 'unsuccessful'}, None
+        else:
+            return {'status': 'active.auction'}, now
     elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
         planned = False
         while not planned:
@@ -90,6 +96,13 @@ def check_tender(tender, db):
             except ResourceConflict:
                 planned = False
         return {'auctionPeriod': auctionPeriod}, now
+    elif tender['status'] == 'active.awarded' and awardPeriodEnd and awardPeriodEnd + STAND_STILL_TIME < now:
+        awards = tender.get('awards', [])
+        awarded = [i for i in awards if i['status'] == 'active']
+        if awarded:
+            return {'status': 'complete'}, None
+        else:
+            return {'status': 'unsuccessful'}, None
     # elif tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
         #tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
         #tenderAuctionEnd = calc_auction_end_time(len(tender.get('bids', [])), tenderAuctionStart)
@@ -105,6 +118,8 @@ def check_tender(tender, db):
         return None, enquiryPeriodEnd
     elif tenderPeriodEnd and tenderPeriodEnd > now:
         return None, tenderPeriodEnd
+    elif awardPeriodEnd and awardPeriodEnd > now:
+        return None, awardPeriodEnd + STAND_STILL_TIME
     return None, None
 
 
