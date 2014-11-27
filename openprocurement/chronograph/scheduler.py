@@ -77,11 +77,11 @@ def check_tender(tender, db):
     tenderPeriodEnd = tenderPeriodEnd and parse_date(
         tenderPeriodEnd, TZ).astimezone(TZ)
     now = get_now()
-    if tender['status'] == 'enquiries' and enquiryPeriodEnd and enquiryPeriodEnd < now:
-        return {'status': 'tendering'}, now
-    elif tender['status'] == 'tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
-        return {'status': 'auction'}, now
-    elif tender['status'] == 'auction' and not tender.get('auctionPeriod'):
+    if tender['status'] == 'active.enquiries' and enquiryPeriodEnd and enquiryPeriodEnd < now:
+        return {'status': 'active.tendering'}, now
+    elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
+        return {'status': 'active.auction'}, now
+    elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
         planned = False
         while not planned:
             try:
@@ -90,7 +90,7 @@ def check_tender(tender, db):
             except ResourceConflict:
                 planned = False
         return {'auctionPeriod': auctionPeriod}, now
-    # elif tender['status'] == 'auction' and tender.get('auctionPeriod'):
+    # elif tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
         #tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
         #tenderAuctionEnd = calc_auction_end_time(len(tender.get('bids', [])), tenderAuctionStart)
         #plan = get_plan(db)
