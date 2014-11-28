@@ -1,5 +1,6 @@
+import gevent.monkey; gevent.monkey.patch_all()
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.gevent import GeventScheduler as Scheduler
 from couchdb import Server
 from datetime import datetime, timedelta
 from openprocurement.chronograph.jobstores import CouchDBJobStore
@@ -40,10 +41,10 @@ def main(global_config, **settings):
     }
     config.registry.api_url = settings.get('api.url')
     config.registry.callback_url = settings.get('callback.url')
-    scheduler = BackgroundScheduler(jobstores=jobstores,
-                                    executors=executors,
-                                    job_defaults=job_defaults,
-                                    timezone=TZ)
+    scheduler = Scheduler(jobstores=jobstores,
+                          executors=executors,
+                          job_defaults=job_defaults,
+                          timezone=TZ)
     config.registry.scheduler = scheduler
     # scheduler.remove_all_jobs()
     scheduler.start()

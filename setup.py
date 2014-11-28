@@ -9,7 +9,8 @@ CHANGES = open(os.path.join(here, 'CHANGES.txt')).read()
 requires = [
     'setuptools',
     'pyramid',
-    'waitress',
+    'chaussette',
+    'gevent',
     'couchdb',
     'apscheduler',
     'requests',
