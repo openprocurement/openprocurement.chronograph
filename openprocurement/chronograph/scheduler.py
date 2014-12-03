@@ -97,12 +97,25 @@ def check_tender(tender, db):
                 planned = False
         return {'auctionPeriod': auctionPeriod}, now
     elif tender['status'] == 'active.awarded' and awardPeriodEnd and awardPeriodEnd + STAND_STILL_TIME < now:
-        awards = tender.get('awards', [])
-        awarded = [i for i in awards if i['status'] == 'active']
-        if awarded:
-            return {'status': 'complete'}, None
-        else:
-            return {'status': 'unsuccessful'}, None
+        accepted_complaints = [
+            i
+            for i in tender['complaints']
+            if i['status'] == 'accepted'
+        ]
+        accepted_awards_complaints = [
+            i
+            for a in tender['awards']
+            for i in a['complaints']
+            if i['status'] == 'accepted'
+        ]
+        stand_still_time_expired = tender.awardPeriod.endDate + STAND_STILL_TIME < get_now()
+        if not accepted_complaints and not accepted_awards_complaints:
+            awards = tender.get('awards', [])
+            awarded = [i for i in awards if i['status'] == 'active']
+            if awarded:
+                return {'status': 'complete'}, None
+            else:
+                return {'status': 'unsuccessful'}, None
     # elif tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
         #tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
         #tenderAuctionEnd = calc_auction_end_time(len(tender.get('bids', [])), tenderAuctionStart)
