@@ -1,4 +1,6 @@
-import gevent.monkey; gevent.monkey.patch_all()
+import gevent.monkey
+gevent.monkey.patch_all()
+import os
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.gevent import GeventScheduler as Scheduler
 from couchdb import Server
@@ -21,6 +23,7 @@ def main(global_config, **settings):
     config.add_route('resync_all', '/resync_all')
     config.add_route('resync', '/resync/{id}')
     config.scan()
+    config.registry.api_token = os.environ.get('API_TOKEN', settings.get('api.token'))
     server = Server(settings.get('couchdb.url'))
     config.registry.couchdb_server = server
     db_name = settings['couchdb.db_name']

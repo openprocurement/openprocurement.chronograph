@@ -140,15 +140,16 @@ def push(url, params):
     requests.get(url, params=params)
 
 
-def resync_tender(scheduler, url, callback_url, db):
-    r = requests.get(url)
+def resync_tender(scheduler, url, api_token, callback_url, db):
+    r = requests.get(url, auth=(api_token, ''))
     json = r.json()
     tender = json['data']
     changes, next_check = check_tender(tender, db)
     if changes:
         r = requests.patch(url,
                            data=dumps({'data': changes}),
-                           headers={'Content-Type': 'application/json'})
+                           headers={'Content-Type': 'application/json'},
+                           auth=(api_token, ''))
     if next_check:
         scheduler.add_job(push, 'date', run_date=next_check, timezone=TZ,
                           id=tender['id'], misfire_grace_time=60 * 60,
@@ -156,10 +157,10 @@ def resync_tender(scheduler, url, callback_url, db):
     return changes, next_check
 
 
-def resync_tenders(scheduler, next_url, callback_url):
+def resync_tenders(scheduler, next_url, api_token, callback_url):
     while True:
         try:
-            r = requests.get(next_url)
+            r = requests.get(next_url, auth=(api_token, ''))
             json = r.json()
             next_url = json['next_page']['uri']
             if not json['data']:
