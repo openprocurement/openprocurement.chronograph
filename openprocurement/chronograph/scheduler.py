@@ -97,19 +97,19 @@ def check_tender(tender, db):
                 planned = False
         return {'auctionPeriod': auctionPeriod}, now
     elif tender['status'] == 'active.awarded' and awardPeriodEnd and awardPeriodEnd + STAND_STILL_TIME < now:
-        accepted_complaints = [
+        pending_complaints = [
             i
             for i in tender['complaints']
-            if i['status'] == 'accepted'
+            if i['status'] == 'pending'
         ]
-        accepted_awards_complaints = [
+        pending_awards_complaints = [
             i
             for a in tender['awards']
             for i in a['complaints']
-            if i['status'] == 'accepted'
+            if i['status'] == 'pending'
         ]
         stand_still_time_expired = tender.awardPeriod.endDate + STAND_STILL_TIME < get_now()
-        if not accepted_complaints and not accepted_awards_complaints:
+        if not pending_complaints and not pending_awards_complaints:
             awards = tender.get('awards', [])
             awarded = [i for i in awards if i['status'] == 'active']
             if awarded:
