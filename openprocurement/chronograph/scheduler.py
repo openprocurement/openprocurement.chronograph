@@ -96,6 +96,20 @@ def check_tender(tender, db):
             except ResourceConflict:
                 planned = False
         return {'auctionPeriod': auctionPeriod}, now
+    elif tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
+        tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
+        tenderAuctionEnd = calc_auction_end_time(len(tender.get('bids', [])), tenderAuctionStart)
+        if tenderAuctionEnd + ROUNDING < now:
+            planned = False
+            while not planned:
+                try:
+                    auctionPeriod = planning_auction(tender, now, db)
+                    planned = True
+                except ResourceConflict:
+                    planned = False
+            return {'auctionPeriod': auctionPeriod}, now
+        else:
+            return None, tenderAuctionEnd + ROUNDING
     elif tender['status'] == 'active.awarded' and awardPeriodEnd and awardPeriodEnd + STAND_STILL_TIME < now:
         pending_complaints = [
             i
@@ -108,25 +122,14 @@ def check_tender(tender, db):
             for i in a['complaints']
             if i['status'] == 'pending'
         ]
-        stand_still_time_expired = tender.awardPeriod.endDate + STAND_STILL_TIME < get_now()
-        if not pending_complaints and not pending_awards_complaints:
+        stand_still_time_expired = tender.awardPeriod.endDate + STAND_STILL_TIME < now
+        if stand_still_time_expired and not pending_complaints and not pending_awards_complaints:
             awards = tender.get('awards', [])
             awarded = [i for i in awards if i['status'] == 'active']
             if awarded:
                 return {'status': 'complete'}, None
             else:
                 return {'status': 'unsuccessful'}, None
-    # elif tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
-        #tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
-        #tenderAuctionEnd = calc_auction_end_time(len(tender.get('bids', [])), tenderAuctionStart)
-        #plan = get_plan(db)
-        #plan_date_end = get_date(plan, tenderAuctionEnd.date())
-        # if tenderAuctionEnd.timetz() > plan_date_end:
-        # for n in range((tenderAuctionEnd.date() - tenderAuctionStart.date()).days):
-        #date = tenderAuctionStart.date() + timedelta(n)
-        #set_date(plan, date.date(), WORKING_DAY_END)
-        #set_date(plan, tenderAuctionEnd.date(), tenderAuctionEnd.timetz())
-        # db.save(plan)
     if enquiryPeriodEnd and enquiryPeriodEnd > now:
         return None, enquiryPeriodEnd
     elif tenderPeriodEnd and tenderPeriodEnd > now:
