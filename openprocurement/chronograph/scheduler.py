@@ -6,6 +6,7 @@ from pytz import timezone
 from tzlocal import get_localzone
 from iso8601 import parse_date
 from couchdb.http import ResourceConflict
+from time import sleep
 
 
 TZ = timezone(get_localzone().tzname(datetime.now()))
@@ -140,11 +141,19 @@ def check_tender(tender, db):
 
 
 def push(url, params):
-    requests.get(url, params=params)
+    while True:
+        r = requests.get(url, params=params)
+        if r.status_code == requests.codes.ok:
+            break
+        sleep(10)
 
 
 def resync_tender(scheduler, url, api_token, callback_url, db):
-    r = requests.get(url, auth=(api_token, ''))
+    while True:
+        r = requests.get(url, auth=(api_token, ''))
+        if r.status_code == requests.codes.ok:
+            break
+        sleep(60)
     json = r.json()
     tender = json['data']
     changes, next_check = check_tender(tender, db)
@@ -163,7 +172,11 @@ def resync_tender(scheduler, url, api_token, callback_url, db):
 def resync_tenders(scheduler, next_url, api_token, callback_url):
     while True:
         try:
-            r = requests.get(next_url, auth=(api_token, ''))
+            while True:
+                r = requests.get(next_url, auth=(api_token, ''))
+                if r.status_code == requests.codes.ok:
+                    break
+                sleep(60)
             json = r.json()
             next_url = json['next_page']['uri']
             if not json['data']:
