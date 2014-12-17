@@ -3,7 +3,7 @@ gevent.monkey.patch_all()
 import os
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.gevent import GeventScheduler as Scheduler
-from couchdb import Server
+from couchdb import Server, Session
 from datetime import datetime, timedelta
 from openprocurement.chronograph.jobstores import CouchDBJobStore
 from openprocurement.chronograph.scheduler import push
@@ -31,7 +31,8 @@ def main(global_config, **settings):
     config.scan()
     config.add_subscriber(start_scheduler, ApplicationCreated)
     config.registry.api_token = os.environ.get('API_TOKEN', settings.get('api.token'))
-    server = Server(settings.get('couchdb.url'))
+    session = Session(retry_delays=range(60))
+    server = Server(settings.get('couchdb.url'), session=session)
     config.registry.couchdb_server = server
     db_name = settings['couchdb.db_name']
     if db_name not in server:
@@ -61,9 +62,12 @@ def main(global_config, **settings):
     resync_all_job = scheduler.get_job('resync_all')
     now = datetime.now(TZ)
     if not resync_all_job or resync_all_job.next_run_time < now - timedelta(hours=1):
+        if resync_all_job:
+            args = resync_all_job.args
+        else:
+            args = [settings.get('callback.url') + 'resync_all', None]
         run_date = now + timedelta(seconds=60)
         scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
-                          id='resync_all',
-                          args=[settings.get('callback.url') + 'resync_all', None],
+                          id='resync_all', args=args,
                           replace_existing=True, misfire_grace_time=60 * 60)
     return config.make_wsgi_app()

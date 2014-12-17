@@ -140,6 +140,18 @@ def check_tender(tender, db):
     return None, None
 
 
+def get_request(url, auth):
+    while True:
+        try:
+            r = requests.get(url, auth=auth)
+        except:
+            pass
+        else:
+            if r.status_code == requests.codes.ok:
+                break
+        sleep(60)
+    return r
+
 def push(url, params):
     while True:
         r = requests.get(url, params=params)
@@ -149,11 +161,7 @@ def push(url, params):
 
 
 def resync_tender(scheduler, url, api_token, callback_url, db):
-    while True:
-        r = requests.get(url, auth=(api_token, ''))
-        if r.status_code == requests.codes.ok:
-            break
-        sleep(60)
+    r = get_request(url, auth=(api_token, ''))
     json = r.json()
     tender = json['data']
     changes, next_check = check_tender(tender, db)
@@ -172,11 +180,7 @@ def resync_tender(scheduler, url, api_token, callback_url, db):
 def resync_tenders(scheduler, next_url, api_token, callback_url):
     while True:
         try:
-            while True:
-                r = requests.get(next_url, auth=(api_token, ''))
-                if r.status_code == requests.codes.ok:
-                    break
-                sleep(60)
+            r = get_request(next_url, auth=(api_token, ''))
             json = r.json()
             next_url = json['next_page']['uri']
             if not json['data']:
