@@ -48,7 +48,9 @@ def calc_auction_end_time(bids, start):
 
 
 def planning_auction(tender, start, db):
-    plan = db.get('plan', {'_id': 'plan'})
+    cpv_group = tender.get('items', [{}])[0].get('classification', {}).get('id')
+    plan_id = 'plan_{}'.format(cpv_group[:3]) if cpv_group else 'plan'
+    plan = db.get(plan_id, {'_id': plan_id})
     if start.timetz() < WORKING_DAY_START:
         nextDate = start.date()
     else:
