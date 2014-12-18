@@ -7,8 +7,10 @@ from tzlocal import get_localzone
 from iso8601 import parse_date
 from couchdb.http import ResourceConflict
 from time import sleep
+from logging import getLogger
 
 
+LOG = getLogger(__name__)
 TZ = timezone(get_localzone().tzname(datetime.now()))
 WORKING_DAY_START = time(11, 0, tzinfo=TZ)
 WORKING_DAY_END = time(16, 0, tzinfo=TZ)
@@ -147,8 +149,7 @@ def get_request(url, auth):
         except:
             pass
         else:
-            if r.status_code == requests.codes.ok:
-                break
+            break
         sleep(60)
     return r
 
@@ -162,14 +163,20 @@ def push(url, params):
 
 def resync_tender(scheduler, url, api_token, callback_url, db):
     r = get_request(url, auth=(api_token, ''))
+    if r.status_code != requests.codes.ok:
+        return
     json = r.json()
     tender = json['data']
     changes, next_check = check_tender(tender, db)
     if changes:
+        data = dumps({'data': changes})
         r = requests.patch(url,
-                           data=dumps({'data': changes}),
+                           data=data,
                            headers={'Content-Type': 'application/json'},
                            auth=(api_token, ''))
+        if r.status_code != requests.codes.ok:
+            LOG.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text))
+            next_check = get_now() + timedelta(seconds=60)
     if next_check:
         scheduler.add_job(push, 'date', run_date=next_check, timezone=TZ,
                           id=tender['id'], misfire_grace_time=60 * 60,
@@ -181,6 +188,8 @@ def resync_tenders(scheduler, next_url, api_token, callback_url):
     while True:
         try:
             r = get_request(next_url, auth=(api_token, ''))
+            if r.status_code != requests.codes.ok:
+                break
             json = r.json()
             next_url = json['next_page']['uri']
             if not json['data']:
