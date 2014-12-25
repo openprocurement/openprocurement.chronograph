@@ -171,11 +171,16 @@ def get_request(url, auth):
         sleep(60)
     return r
 
+
 def push(url, params):
     while True:
-        r = requests.get(url, params=params)
-        if r.status_code == requests.codes.ok:
-            break
+        try:
+            r = requests.get(url, params=params)
+        except:
+            pass
+        else:
+            if r.status_code == requests.codes.ok:
+                break
         sleep(10)
 
 
