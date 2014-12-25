@@ -88,7 +88,7 @@ def check_tender(tender, db):
     if tender['status'] == 'active.enquiries' and (not tenderPeriodStart and enquiryPeriodEnd and enquiryPeriodEnd < now or tenderPeriodStart and tenderPeriodStart < now):
         LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
         return {'status': 'active.tendering'}, now
-    elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd > now:
+    elif tender['status'] == 'active.tendering' and not tender.get('auctionPeriod') and tenderPeriodEnd and tenderPeriodEnd > now:
         planned = False
         while not planned:
             try:
@@ -221,8 +221,7 @@ def resync_tenders(scheduler, next_url, api_token, callback_url):
                 run_date = get_now()
                 scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
                                   id=tender['id'], misfire_grace_time=60 * 60,
-                                  args=[
-                                      callback_url + 'resync/' + tender['id'], None],
+                                  args=[callback_url + 'resync/' + tender['id'], None],
                                   replace_existing=True)
         except:
             break
