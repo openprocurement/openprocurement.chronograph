@@ -61,7 +61,7 @@ def planning_auction(tender, start, db):
             nextDate += timedelta(days=1)
             continue
         start = datetime.combine(nextDate, dayStart)
-        end = calc_auction_end_time(len(tender.get('bids', [])), start)
+        end = calc_auction_end_time(3, start)  # len(tender.get('bids', [])
         if dayStart == WORKING_DAY_START and end > datetime.combine(nextDate, WORKING_DAY_END):
             break
         elif end <= datetime.combine(nextDate, WORKING_DAY_END):
@@ -86,25 +86,38 @@ def check_tender(tender, db):
     awardPeriodEnd = awardPeriodEnd and parse_date(awardPeriodEnd, TZ).astimezone(TZ)
     now = get_now()
     if tender['status'] == 'active.enquiries' and (not tenderPeriodStart and enquiryPeriodEnd and enquiryPeriodEnd < now or tenderPeriodStart and tenderPeriodStart < now):
+        LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
         return {'status': 'active.tendering'}, now
-    elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
-        if not tender.get('bids', []):
-            return {'status': 'unsuccessful'}, None
-        else:
-            return {'status': 'active.auction'}, now
-    elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
+    elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd > now:
         planned = False
         while not planned:
             try:
-                auctionPeriod = planning_auction(tender, now, db)
+                auctionPeriod = planning_auction(tender, tenderPeriodEnd, db)
                 planned = True
             except ResourceConflict:
                 planned = False
+        LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod['startDate']))
         return {'auctionPeriod': auctionPeriod}, now
+    elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
+        if not tender.get('bids', []):
+            LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
+            return {'status': 'unsuccessful'}, None
+        else:
+            LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
+            return {'status': 'active.auction'}, now
+    #elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
+        #planned = False
+        #while not planned:
+            #try:
+                #auctionPeriod = planning_auction(tender, now, db)
+                #planned = True
+            #except ResourceConflict:
+                #planned = False
+        #return {'auctionPeriod': auctionPeriod}, now
     elif tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
         tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
         tenderAuctionEnd = calc_auction_end_time(len(tender.get('bids', [])), tenderAuctionStart)
-        if tenderAuctionEnd + ROUNDING < now:
+        if now > tenderAuctionEnd + MIN_PAUSE:
             planned = False
             while not planned:
                 try:
@@ -112,9 +125,10 @@ def check_tender(tender, db):
                     planned = True
                 except ResourceConflict:
                     planned = False
+            LOG.info('Replanned auction for tender {} to {}'.format(tender['id'], auctionPeriod['startDate']))
             return {'auctionPeriod': auctionPeriod}, now
         else:
-            return None, tenderAuctionEnd + ROUNDING
+            return None, tenderAuctionEnd + MIN_PAUSE
     elif tender['status'] == 'active.awarded' and awardPeriodEnd and awardPeriodEnd + STAND_STILL_TIME < now:
         pending_complaints = [
             i
@@ -132,8 +146,10 @@ def check_tender(tender, db):
             awards = tender.get('awards', [])
             awarded = [i for i in awards if i['status'] == 'active']
             if awarded:
+                LOG.info('Switched tender {} to {}'.format(tender['id'], 'complete'))
                 return {'status': 'complete'}, None
             else:
+                LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
                 return {'status': 'unsuccessful'}, None
     if enquiryPeriodEnd and enquiryPeriodEnd > now:
         return None, enquiryPeriodEnd
