@@ -56,6 +56,7 @@ def main(global_config, **settings):
                           #executors=executors,
                           job_defaults=job_defaults,
                           timezone=TZ)
+    scheduler.add_jobstore('sqlalchemy', url=settings['jobstore_db'])
     config.registry.scheduler = scheduler
     # scheduler.remove_all_jobs()
     # scheduler.start()
