@@ -39,8 +39,8 @@ def main(global_config, **settings):
         server.create(db_name)
     config.registry.db = server[db_name]
     jobstores = {
-        'default': CouchDBJobStore(database=db_name,
-                                   client=server)
+        #'default': CouchDBJobStore(database=db_name,
+                                   #client=server)
     }
     executors = {
         'default': ThreadPoolExecutor(5),

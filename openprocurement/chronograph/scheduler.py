@@ -77,15 +77,15 @@ def planning_auction(tender, start, db):
 
 def check_tender(tender, db):
     enquiryPeriodEnd = tender.get('enquiryPeriod', {}).get('endDate')
-    enquiryPeriodEnd = enquiryPeriodEnd and parse_date(
-        enquiryPeriodEnd, TZ).astimezone(TZ)
+    enquiryPeriodEnd = enquiryPeriodEnd and parse_date(enquiryPeriodEnd, TZ).astimezone(TZ)
+    tenderPeriodStart = tender.get('tenderPeriod', {}).get('startDate')
+    tenderPeriodStart = tenderPeriodStart and parse_date(tenderPeriodStart, TZ).astimezone(TZ)
     tenderPeriodEnd = tender.get('tenderPeriod', {}).get('endDate')
-    tenderPeriodEnd = tenderPeriodEnd and parse_date(
-        tenderPeriodEnd, TZ).astimezone(TZ)
+    tenderPeriodEnd = tenderPeriodEnd and parse_date(tenderPeriodEnd, TZ).astimezone(TZ)
     awardPeriodEnd = tender.get('awardPeriod', {}).get('endDate')
     awardPeriodEnd = awardPeriodEnd and parse_date(awardPeriodEnd, TZ).astimezone(TZ)
     now = get_now()
-    if tender['status'] == 'active.enquiries' and enquiryPeriodEnd and enquiryPeriodEnd < now:
+    if tender['status'] == 'active.enquiries' and (not tenderPeriodStart and enquiryPeriodEnd and enquiryPeriodEnd < now or tenderPeriodStart and tenderPeriodStart < now):
         return {'status': 'active.tendering'}, now
     elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
         if not tender.get('bids', []):
