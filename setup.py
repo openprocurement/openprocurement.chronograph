@@ -15,6 +15,8 @@ requires = [
     'apscheduler',
     'requests',
     'iso8601',
+    'SQLAlchemy',
+    'pysqlite',
 ]
 
 setup(name='openprocurement.chronograph',

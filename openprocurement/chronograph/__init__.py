@@ -39,8 +39,8 @@ def main(global_config, **settings):
         server.create(db_name)
     config.registry.db = server[db_name]
     jobstores = {
-        'default': CouchDBJobStore(database=db_name,
-                                   client=server)
+        #'default': CouchDBJobStore(database=db_name,
+                                   #client=server)
     }
     executors = {
         'default': ThreadPoolExecutor(5),
@@ -56,6 +56,7 @@ def main(global_config, **settings):
                           #executors=executors,
                           job_defaults=job_defaults,
                           timezone=TZ)
+    scheduler.add_jobstore('sqlalchemy', url=settings['jobstore_db'])
     config.registry.scheduler = scheduler
     # scheduler.remove_all_jobs()
     # scheduler.start()
