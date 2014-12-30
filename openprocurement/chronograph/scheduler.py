@@ -61,7 +61,7 @@ def planning_auction(tender, start, db):
             nextDate += timedelta(days=1)
             continue
         start = datetime.combine(nextDate, dayStart)
-        end = calc_auction_end_time(len(tender.get('bids', [])), start)
+        end = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), start)
         if dayStart == WORKING_DAY_START and end > datetime.combine(nextDate, WORKING_DAY_END):
             break
         elif end <= datetime.combine(nextDate, WORKING_DAY_END):
@@ -88,7 +88,7 @@ def check_tender(tender, db):
     if tender['status'] == 'active.enquiries' and enquiryPeriodEnd and enquiryPeriodEnd < now:
         return {'status': 'active.tendering'}, now
     elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
-        if not tender.get('bids', []):
+        if not tender.get('numberOfBids', len(tender.get('bids', []))):
             return {'status': 'unsuccessful'}, None
         else:
             return {'status': 'active.auction'}, now
@@ -103,7 +103,7 @@ def check_tender(tender, db):
         return {'auctionPeriod': auctionPeriod}, now
     elif tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
         tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
-        tenderAuctionEnd = calc_auction_end_time(len(tender.get('bids', [])), tenderAuctionStart)
+        tenderAuctionEnd = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), tenderAuctionStart)
         if tenderAuctionEnd + ROUNDING < now:
             planned = False
             while not planned:
