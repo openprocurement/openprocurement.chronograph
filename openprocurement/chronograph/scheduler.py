@@ -99,12 +99,12 @@ def check_tender(tender, db):
         LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod['startDate']))
         return {'auctionPeriod': auctionPeriod}, now
     elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
-        if not tender.get('bids', []):
-            LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
-            return {'status': 'unsuccessful'}, None
-        else:
+        if tender.get('numberOfBids', len(tender.get('bids', []))):
             LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
             return {'status': 'active.auction'}, now
+        else:
+            LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
+            return {'status': 'unsuccessful'}, None
     #elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
         #planned = False
         #while not planned:
@@ -116,7 +116,7 @@ def check_tender(tender, db):
         #return {'auctionPeriod': auctionPeriod}, now
     elif tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
         tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
-        tenderAuctionEnd = calc_auction_end_time(len(tender.get('bids', [])), tenderAuctionStart)
+        tenderAuctionEnd = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), tenderAuctionStart)
         if now > tenderAuctionEnd + MIN_PAUSE:
             planned = False
             while not planned:
