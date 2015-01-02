@@ -23,7 +23,7 @@ def resync_all(request):
 
 @view_config(route_name='resync', renderer='json')
 def resync(request):
-    tid = request.matchdict['id']
+    tid = request.matchdict['tender_id']
     resync_tender(request.registry.scheduler,
                   request.registry.api_url + 'api/0/tenders/' + tid,
                   request.registry.api_token,
