@@ -1,6 +1,7 @@
 import gevent.monkey
 gevent.monkey.patch_all()
 import os
+from logging import getLogger
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.gevent import GeventScheduler as Scheduler
 from couchdb import Server, Session
@@ -10,10 +11,23 @@ from openprocurement.chronograph.scheduler import push
 from pyramid.config import Configurator
 from pytz import timezone
 from tzlocal import get_localzone
-from pyramid.events import ApplicationCreated
+from pyramid.events import ApplicationCreated, ContextFound
 
 
+try:
+    from systemd.journal import JournalHandler
+except ImportError:
+    JournalHandler = False
+
+LOGGER = getLogger(__name__)
 TZ = timezone(get_localzone().tzname(datetime.now()))
+
+
+def set_journal_handler(event):
+    params = {'PARAMS': str(dict(event.request.params))}
+    for i, j in event.request.matchdict.items():
+        params[i.upper()] = j
+    LOGGER.addHandler(JournalHandler(**params))
 
 
 def start_scheduler(event):
@@ -25,9 +39,12 @@ def main(global_config, **settings):
     """ This function returns a Pyramid WSGI application.
     """
     config = Configurator(settings=settings)
+    if JournalHandler:
+        config.add_subscriber(set_journal_handler, ContextFound)
+    config.include('pyramid_exclog')
     config.add_route('home', '/')
     config.add_route('resync_all', '/resync_all')
-    config.add_route('resync', '/resync/{id}')
+    config.add_route('resync', '/resync/{tender_id}')
     config.scan()
     config.add_subscriber(start_scheduler, ApplicationCreated)
     config.registry.api_token = os.environ.get('API_TOKEN', settings.get('api.token'))
