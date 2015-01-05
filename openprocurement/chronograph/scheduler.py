@@ -199,7 +199,7 @@ def resync_tender(scheduler, url, api_token, callback_url, db):
                            auth=(api_token, ''))
         if r.status_code != requests.codes.ok:
             LOG.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text))
-            next_check = get_now() + timedelta(seconds=60)
+            next_check = get_now() + timedelta(minutes=1)
     if next_check:
         scheduler.add_job(push, 'date', run_date=next_check, timezone=TZ,
                           id=tender['id'], misfire_grace_time=60 * 60,
@@ -218,14 +218,16 @@ def resync_tenders(scheduler, next_url, api_token, callback_url):
             if not json['data']:
                 break
             for tender in json['data']:
+                resync_job = scheduler.get_job(tender['id'])
                 run_date = get_now()
-                scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
-                                  id=tender['id'], misfire_grace_time=60 * 60,
-                                  args=[callback_url + 'resync/' + tender['id'], None],
-                                  replace_existing=True)
+                if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
+                    scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
+                                      id=tender['id'], misfire_grace_time=60 * 60,
+                                      args=[callback_url + 'resync/' + tender['id'], None],
+                                      replace_existing=True)
         except:
             break
-    run_date = get_now() + timedelta(seconds=60)
+    run_date = get_now() + timedelta(minutes=1)
     scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
                       id='resync_all', misfire_grace_time=60 * 60,
                       args=[callback_url + 'resync_all', {'url': next_url}],

@@ -24,9 +24,14 @@ TZ = timezone(get_localzone().tzname(datetime.now()))
 
 
 def set_journal_handler(event):
-    params = {'PARAMS': str(dict(event.request.params))}
-    for i, j in event.request.matchdict.items():
-        params[i.upper()] = j
+    params = {
+        'TAGS': 'python,chronograph',
+    }
+    if event.request.params:
+        params['PARAMS'] = str(dict(event.request.params))
+    if event.request.matchdict:
+        for i, j in event.request.matchdict.items():
+            params[i.upper()] = j
     LOGGER.addHandler(JournalHandler(**params))
 
 
