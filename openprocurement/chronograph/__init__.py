@@ -11,7 +11,7 @@ from openprocurement.chronograph.scheduler import push
 from pyramid.config import Configurator
 from pytz import timezone
 from tzlocal import get_localzone
-from pyramid.events import ApplicationCreated, ContextFound
+from pyramid.events import ApplicationCreated, ContextFound, BeforeRender
 
 
 try:
@@ -35,6 +35,11 @@ def set_journal_handler(event):
     LOGGER.addHandler(JournalHandler(**params))
 
 
+def clear_journal_handler(event):
+    for i in LOGGER.handlers:
+        LOGGER.removeHandler(i)
+
+
 def start_scheduler(event):
     app = event.app
     app.registry.scheduler.start()
@@ -46,6 +51,7 @@ def main(global_config, **settings):
     config = Configurator(settings=settings)
     if JournalHandler:
         config.add_subscriber(set_journal_handler, ContextFound)
+        config.add_subscriber(clear_journal_handler, BeforeRender)
     config.include('pyramid_exclog')
     config.add_route('home', '/')
     config.add_route('resync_all', '/resync_all')
