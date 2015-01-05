@@ -14,7 +14,7 @@ def my_view(request):
 def resync_all(request):
     url = request.params.get('url', '')
     if not url:
-        url = request.registry.api_url + 'api/0/tenders'
+        url = request.registry.api_url + 'api/0.6/tenders'
     resync_tenders(request.registry.scheduler,
                    url,
                    request.registry.api_token,
@@ -25,7 +25,7 @@ def resync_all(request):
 def resync(request):
     tid = request.matchdict['tender_id']
     resync_tender(request.registry.scheduler,
-                  request.registry.api_url + 'api/0/tenders/' + tid,
+                  request.registry.api_url + 'api/0.6/tenders/' + tid,
                   request.registry.api_token,
                   request.registry.callback_url + 'resync/' + tid,
                   request.registry.db)
