@@ -132,13 +132,13 @@ def check_tender(tender, db):
     elif tender['status'] == 'active.awarded' and awardPeriodEnd and awardPeriodEnd + STAND_STILL_TIME < now:
         pending_complaints = [
             i
-            for i in tender['complaints']
+            for i in tender.get('complaints', [])
             if i['status'] == 'pending'
         ]
         pending_awards_complaints = [
             i
-            for a in tender['awards']
-            for i in a['complaints']
+            for a in tender.get('awards', [])
+            for i in a.get('complaints', [])
             if i['status'] == 'pending'
         ]
         stand_still_time_expired = tender.awardPeriod.endDate + STAND_STILL_TIME < now
