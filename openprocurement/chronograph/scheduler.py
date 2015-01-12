@@ -99,9 +99,13 @@ def check_tender(tender, db):
         LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod['startDate']))
         return {'auctionPeriod': auctionPeriod}, now
     elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
-        if tender.get('numberOfBids', len(tender.get('bids', []))):
+        numberOfBids = tender.get('numberOfBids', len(tender.get('bids', [])))
+        if numberOfBids > 1:
             LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
             return {'status': 'active.auction'}, now
+        elif numberOfBids == 1:
+            LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.qualification'))
+            return {'status': 'active.qualification', 'auctionPeriod': {'startDate': None}, 'awardPeriod': {'startDate': now.isoformat()}}, now
         else:
             LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
             return {'status': 'unsuccessful'}, None
