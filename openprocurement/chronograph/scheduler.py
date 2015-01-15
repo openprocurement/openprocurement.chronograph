@@ -47,11 +47,14 @@ def calc_auction_end_time(bids, start):
     return end + timedelta(0, rounding - seconds, -end.microsecond)
 
 
-def planning_auction(tender, start, db):
+def planning_auction(tender, start, db, quick=False):
     cpv_group = tender.get('items', [{}])[0].get('classification', {}).get('id')
     plan_id = 'plan_{}'.format(cpv_group[:3]) if cpv_group else 'plan'
     plan = db.get(plan_id, {'_id': plan_id})
-    if start.timetz() < WORKING_DAY_START:
+    if quick:
+        start = calc_auction_end_time(0, start)
+        nextDate = start.date()
+    elif start.timetz() < WORKING_DAY_START:
         nextDate = start.date()
     else:
         nextDate = start.date() + timedelta(days=1)
@@ -90,9 +93,10 @@ def check_tender(tender, db):
         return {'status': 'active.tendering'}, now
     elif tender['status'] == 'active.tendering' and not tender.get('auctionPeriod') and tenderPeriodEnd and tenderPeriodEnd > now:
         planned = False
+        quick = u'quick' in tender.get('submissionMethodDetails', '')
         while not planned:
             try:
-                auctionPeriod = planning_auction(tender, tenderPeriodEnd, db)
+                auctionPeriod = planning_auction(tender, tenderPeriodEnd, db, quick)
                 planned = True
             except ResourceConflict:
                 planned = False
@@ -123,9 +127,10 @@ def check_tender(tender, db):
         tenderAuctionEnd = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), tenderAuctionStart)
         if now > tenderAuctionEnd + MIN_PAUSE:
             planned = False
+            quick = u'quick' in tender.get('submissionMethodDetails', '')
             while not planned:
                 try:
-                    auctionPeriod = planning_auction(tender, now, db)
+                    auctionPeriod = planning_auction(tender, now, db, quick)
                     planned = True
                 except ResourceConflict:
                     planned = False
