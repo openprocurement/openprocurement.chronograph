@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import requests
 from datetime import datetime, timedelta, time
 from json import dumps
@@ -93,7 +94,7 @@ def check_tender(tender, db):
         return {'status': 'active.tendering'}, now
     elif tender['status'] == 'active.tendering' and not tender.get('auctionPeriod') and tenderPeriodEnd and tenderPeriodEnd > now:
         planned = False
-        quick = u'quick' in tender.get('submissionMethodDetails', '')
+        quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
         while not planned:
             try:
                 auctionPeriod = planning_auction(tender, tenderPeriodEnd, db, quick)
@@ -127,7 +128,7 @@ def check_tender(tender, db):
         tenderAuctionEnd = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), tenderAuctionStart)
         if now > tenderAuctionEnd + MIN_PAUSE:
             planned = False
-            quick = u'quick' in tender.get('submissionMethodDetails', '')
+            quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
             while not planned:
                 try:
                     auctionPeriod = planning_auction(tender, now, db, quick)
