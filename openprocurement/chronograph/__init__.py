@@ -31,6 +31,7 @@ def set_journal_handler(event):
         'REMOTE_ADDR': event.request.remote_addr or '',
         'USER_AGENT': event.request.user_agent or '',
         'TENDER_ID': '',
+        'TIMESTAMP': datetime.now(TZ).isoformat(),
     }
     if event.request.params:
         params['PARAMS'] = str(dict(event.request.params))
