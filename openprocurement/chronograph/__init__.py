@@ -26,12 +26,19 @@ TZ = timezone(get_localzone().tzname(datetime.now()))
 def set_journal_handler(event):
     params = {
         'TAGS': 'python,chronograph',
+        'CURRENT_URL': event.request.url,
+        'CURRENT_PATH': event.request.path_info,
+        'REMOTE_ADDR': event.request.remote_addr,
+        'USER_AGENT': event.request.user_agent,
+        'TENDER_ID': '',
     }
     if event.request.params:
         params['PARAMS'] = str(dict(event.request.params))
     if event.request.matchdict:
         for i, j in event.request.matchdict.items():
             params[i.upper()] = j
+    for i in LOGGER.handlers:
+        LOGGER.removeHandler(i)
     LOGGER.addHandler(JournalHandler(**params))
 
 
