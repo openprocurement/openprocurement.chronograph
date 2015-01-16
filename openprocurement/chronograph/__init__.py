@@ -28,8 +28,8 @@ def set_journal_handler(event):
         'TAGS': 'python,chronograph',
         'CURRENT_URL': event.request.url,
         'CURRENT_PATH': event.request.path_info,
-        'REMOTE_ADDR': event.request.remote_addr,
-        'USER_AGENT': event.request.user_agent,
+        'REMOTE_ADDR': event.request.remote_addr or '',
+        'USER_AGENT': event.request.user_agent or '',
         'TENDER_ID': '',
     }
     if event.request.params:
