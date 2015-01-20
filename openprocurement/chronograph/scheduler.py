@@ -53,8 +53,8 @@ def planning_auction(tender, start, db, quick=False):
     plan_id = 'plan_{}'.format(cpv_group[:3]) if cpv_group else 'plan'
     plan = db.get(plan_id, {'_id': plan_id})
     if quick:
-        start = calc_auction_end_time(0, start)
-        nextDate = start.date()
+        quick_start = calc_auction_end_time(0, start)
+        return {'startDate': quick_start.isoformat()}
     elif start.timetz() < WORKING_DAY_START:
         nextDate = start.date()
     else:
