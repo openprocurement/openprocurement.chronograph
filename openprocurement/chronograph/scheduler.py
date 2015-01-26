@@ -201,19 +201,23 @@ def push(url, params):
 def resync_tender(scheduler, url, api_token, callback_url, db):
     r = get_request(url, auth=(api_token, ''))
     if r.status_code != requests.codes.ok:
-        return
-    json = r.json()
-    tender = json['data']
-    changes, next_check = check_tender(tender, db)
-    if changes:
-        data = dumps({'data': changes})
-        r = requests.patch(url,
-                           data=data,
-                           headers={'Content-Type': 'application/json'},
-                           auth=(api_token, ''))
-        if r.status_code != requests.codes.ok:
-            LOG.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text))
-            next_check = get_now() + timedelta(minutes=1)
+        LOG.error("Error {} on getting tender '{}': {}".format(r.status_code, url, r.text))
+        if r.status_code == requests.codes.not_found:
+            return
+        next_check = get_now() + timedelta(minutes=1)
+    else:
+        json = r.json()
+        tender = json['data']
+        changes, next_check = check_tender(tender, db)
+        if changes:
+            data = dumps({'data': changes})
+            r = requests.patch(url,
+                            data=data,
+                            headers={'Content-Type': 'application/json'},
+                            auth=(api_token, ''))
+            if r.status_code != requests.codes.ok:
+                LOG.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text))
+                next_check = get_now() + timedelta(minutes=1)
     if next_check:
         scheduler.add_job(push, 'date', run_date=next_check, timezone=TZ,
                           id=tender['id'], misfire_grace_time=60 * 60,
