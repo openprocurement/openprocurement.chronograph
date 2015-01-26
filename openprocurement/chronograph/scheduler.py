@@ -89,7 +89,10 @@ def check_tender(tender, db):
     awardPeriodEnd = tender.get('awardPeriod', {}).get('endDate')
     awardPeriodEnd = awardPeriodEnd and parse_date(awardPeriodEnd, TZ).astimezone(TZ)
     now = get_now()
-    if tender['status'] == 'active.enquiries' and (not tenderPeriodStart and enquiryPeriodEnd and enquiryPeriodEnd < now or tenderPeriodStart and tenderPeriodStart < now):
+    if tender['status'] == 'active.enquiries' and not tenderPeriodStart and enquiryPeriodEnd and enquiryPeriodEnd < now:
+        LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
+        return {'status': 'active.tendering'}, now
+    elif tender['status'] == 'active.enquiries' and tenderPeriodStart and tenderPeriodStart < now):
         LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
         return {'status': 'active.tendering'}, now
     elif tender['status'] == 'active.tendering' and not tender.get('auctionPeriod') and tenderPeriodEnd and tenderPeriodEnd > now:
@@ -162,6 +165,8 @@ def check_tender(tender, db):
                 return {'status': 'unsuccessful'}, None
     if enquiryPeriodEnd and enquiryPeriodEnd > now:
         return None, enquiryPeriodEnd
+    elif tenderPeriodStart and tenderPeriodStart > now:
+        return None, tenderPeriodStart
     elif tenderPeriodEnd and tenderPeriodEnd > now:
         return None, tenderPeriodEnd
     elif awardPeriodEnd and awardPeriodEnd > now:
