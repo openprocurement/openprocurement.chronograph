@@ -92,7 +92,7 @@ def check_tender(tender, db):
     if tender['status'] == 'active.enquiries' and not tenderPeriodStart and enquiryPeriodEnd and enquiryPeriodEnd < now:
         LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
         return {'status': 'active.tendering'}, now
-    elif tender['status'] == 'active.enquiries' and tenderPeriodStart and tenderPeriodStart < now):
+    elif tender['status'] == 'active.enquiries' and tenderPeriodStart and tenderPeriodStart < now:
         LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
         return {'status': 'active.tendering'}, now
     elif tender['status'] == 'active.tendering' and not tender.get('auctionPeriod') and tenderPeriodEnd and tenderPeriodEnd > now:
