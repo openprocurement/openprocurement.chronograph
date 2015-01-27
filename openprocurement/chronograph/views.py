@@ -14,7 +14,7 @@ def my_view(request):
 def resync_all(request):
     url = request.params.get('url', '')
     if not url:
-        url = request.registry.api_url + 'tenders'
+        url = request.registry.api_url + 'tenders?mode=_all_'
     resync_tenders(request.registry.scheduler,
                    url,
                    request.registry.api_token,
