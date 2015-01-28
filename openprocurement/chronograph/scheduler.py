@@ -157,10 +157,10 @@ def check_tender(tender, db):
         if not pending_complaints and not pending_awards_complaints:
             awards = tender.get('awards', [])
             awarded = [i for i in awards if i['status'] == 'active']
-            if awarded:
-                LOG.info('Switched tender {} to {}'.format(tender['id'], 'complete'))
-                return {'status': 'complete'}, None
-            else:
+            if not awarded:
+                #LOG.info('Switched tender {} to {}'.format(tender['id'], 'complete'))
+                #return {'status': 'complete'}, None
+            #else:
                 LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
                 return {'status': 'unsuccessful'}, None
     if enquiryPeriodEnd and enquiryPeriodEnd > now:
