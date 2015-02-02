@@ -116,7 +116,7 @@ def check_tender(tender, db):
             return {'status': 'active.qualification', 'auctionPeriod': {'startDate': None}, 'awardPeriod': {'startDate': now.isoformat()}}, now
         else:
             LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
-            return {'status': 'unsuccessful'}, None
+            return {'status': 'unsuccessful', 'auctionPeriod': {'startDate': None}}, None
     #elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
         #planned = False
         #while not planned:
