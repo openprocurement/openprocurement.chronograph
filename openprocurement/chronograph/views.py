@@ -18,7 +18,8 @@ def resync_all(request):
     resync_tenders(request.registry.scheduler,
                    url,
                    request.registry.api_token,
-                   request.registry.callback_url)
+                   request.registry.callback_url,
+                   request.environ.get('REQUEST_ID', ''))
 
 
 @view_config(route_name='resync', renderer='json')
@@ -28,4 +29,6 @@ def resync(request):
                   request.registry.api_url + 'tenders/' + tid,
                   request.registry.api_token,
                   request.registry.callback_url + 'resync/' + tid,
-                  request.registry.db)
+                  request.registry.db,
+                  tid,
+                  request.environ.get('REQUEST_ID', ''))
