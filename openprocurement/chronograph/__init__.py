@@ -35,6 +35,7 @@ def set_journal_handler(event):
         'TENDER_ID': '',
         'TIMESTAMP': datetime.now(TZ).isoformat(),
         'REQUEST_ID': request.environ.get('REQUEST_ID', '')
+        'CLIENT_REQUEST_ID': request.headers.get('X-Client-Request-ID', ''),
     }
     if request.params:
         params['PARAMS'] = str(dict(request.params))
