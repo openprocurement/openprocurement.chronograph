@@ -21,7 +21,7 @@ requires = [
 ]
 
 setup(name='openprocurement.chronograph',
-      version='0.1.3',
+      version='0.1.4',
       description='openprocurement.chronograph',
       long_description=README + '\n\n' + CHANGES,
       classifiers=[
