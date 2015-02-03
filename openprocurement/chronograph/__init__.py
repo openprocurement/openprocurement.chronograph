@@ -34,7 +34,7 @@ def set_journal_handler(event):
         'USER_AGENT': request.user_agent or '',
         'TENDER_ID': '',
         'TIMESTAMP': datetime.now(TZ).isoformat(),
-        'REQUEST_ID': request.environ.get('REQUEST_ID', '')
+        'REQUEST_ID': request.environ.get('REQUEST_ID', ''),
         'CLIENT_REQUEST_ID': request.headers.get('X-Client-Request-ID', ''),
     }
     if request.params:
