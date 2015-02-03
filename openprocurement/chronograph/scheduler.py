@@ -199,7 +199,7 @@ def push(url, params):
 
 
 def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, request_id):
-    r = get_request(url, auth=(api_token, ''), headers={'X-Request-ID': request_id})
+    r = get_request(url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
     if r.status_code != requests.codes.ok:
         LOG.error("Error {} on getting tender '{}': {}".format(r.status_code, url, r.text))
         if r.status_code == requests.codes.not_found:
@@ -214,7 +214,7 @@ def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, reques
             data = dumps({'data': changes})
             r = requests.patch(url,
                             data=data,
-                            headers={'Content-Type': 'application/json', 'X-Request-ID': request_id},
+                            headers={'Content-Type': 'application/json', 'X-Client-Request-ID': request_id},
                             auth=(api_token, ''))
             if r.status_code != requests.codes.ok:
                 LOG.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text))
@@ -229,7 +229,7 @@ def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, reques
 def resync_tenders(scheduler, next_url, api_token, callback_url, request_id):
     while True:
         try:
-            r = get_request(next_url, auth=(api_token, ''), headers={'X-Request-ID': request_id})
+            r = get_request(next_url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
             if r.status_code != requests.codes.ok:
                 break
             json = r.json()
