@@ -19,7 +19,7 @@ ROUNDING = timedelta(minutes=15)
 MIN_PAUSE = timedelta(minutes=5)
 BIDDER_TIME = timedelta(minutes=6)
 SERVICE_TIME = timedelta(minutes=9)
-STAND_STILL_TIME = timedelta(days=10)
+STAND_STILL_TIME = timedelta(days=1)
 
 
 def get_now():
