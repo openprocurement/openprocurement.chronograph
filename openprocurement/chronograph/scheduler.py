@@ -63,6 +63,9 @@ def planning_auction(tender, start, db, quick=False):
     else:
         nextDate = start.date() + timedelta(days=1)
     while True:
+        if nextDate.weekday() in [5, 6]:  # skip Saturday and Sunday
+            nextDate += timedelta(days=1)
+            continue
         dayStart = get_date(plan, nextDate)
         if dayStart >= WORKING_DAY_END:
             nextDate += timedelta(days=1)
