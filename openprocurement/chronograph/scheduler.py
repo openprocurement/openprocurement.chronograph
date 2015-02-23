@@ -51,6 +51,9 @@ def calc_auction_end_time(bids, start):
 def planning_auction(tender, start, db, quick=False):
     cpv_group = tender.get('items', [{}])[0].get('classification', {}).get('id')
     plan_id = 'plan_{}'.format(cpv_group[:3]) if cpv_group else 'plan'
+    mode = tender.get('mode', '')
+    if mode:
+        plan_id = '{}_{}'.format(plan_id, mode)
     plan = db.get(plan_id, {'_id': plan_id})
     if quick:
         quick_start = calc_auction_end_time(0, start)
