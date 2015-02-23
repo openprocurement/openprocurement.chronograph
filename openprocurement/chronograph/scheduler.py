@@ -19,7 +19,7 @@ ROUNDING = timedelta(minutes=15)
 MIN_PAUSE = timedelta(minutes=5)
 BIDDER_TIME = timedelta(minutes=6)
 SERVICE_TIME = timedelta(minutes=9)
-STAND_STILL_TIME = timedelta(days=10)
+STAND_STILL_TIME = timedelta(days=1)
 
 
 def get_now():
@@ -119,7 +119,7 @@ def check_tender(tender, db):
             return {'status': 'active.qualification', 'auctionPeriod': {'startDate': None}, 'awardPeriod': {'startDate': now.isoformat()}}, now
         else:
             LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
-            return {'status': 'unsuccessful'}, None
+            return {'status': 'unsuccessful', 'auctionPeriod': {'startDate': None}}, None
     #elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
         #planned = False
         #while not planned:
@@ -177,10 +177,10 @@ def check_tender(tender, db):
     return None, None
 
 
-def get_request(url, auth):
+def get_request(url, auth, headers=None):
     while True:
         try:
-            r = requests.get(url, auth=auth)
+            r = requests.get(url, auth=auth, headers=headers)
         except:
             pass
         else:
@@ -201,12 +201,13 @@ def push(url, params):
         sleep(10)
 
 
-def resync_tender(scheduler, url, api_token, callback_url, db):
-    r = get_request(url, auth=(api_token, ''))
+def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, request_id):
+    r = get_request(url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
     if r.status_code != requests.codes.ok:
         LOG.error("Error {} on getting tender '{}': {}".format(r.status_code, url, r.text))
         if r.status_code == requests.codes.not_found:
             return
+        changes = None
         next_check = get_now() + timedelta(minutes=1)
     else:
         json = r.json()
@@ -216,22 +217,22 @@ def resync_tender(scheduler, url, api_token, callback_url, db):
             data = dumps({'data': changes})
             r = requests.patch(url,
                             data=data,
-                            headers={'Content-Type': 'application/json'},
+                            headers={'Content-Type': 'application/json', 'X-Client-Request-ID': request_id},
                             auth=(api_token, ''))
             if r.status_code != requests.codes.ok:
                 LOG.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text))
                 next_check = get_now() + timedelta(minutes=1)
     if next_check:
         scheduler.add_job(push, 'date', run_date=next_check, timezone=TZ,
-                          id=tender['id'], misfire_grace_time=60 * 60,
+                          id=tender_id, misfire_grace_time=60 * 60,
                           args=[callback_url, None], replace_existing=True)
     return changes, next_check
 
 
-def resync_tenders(scheduler, next_url, api_token, callback_url):
+def resync_tenders(scheduler, next_url, api_token, callback_url, request_id):
     while True:
         try:
-            r = get_request(next_url, auth=(api_token, ''))
+            r = get_request(next_url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
             if r.status_code != requests.codes.ok:
                 break
             json = r.json()
