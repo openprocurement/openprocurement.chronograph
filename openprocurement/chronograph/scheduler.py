@@ -95,10 +95,10 @@ def check_tender(tender, db):
     awardPeriodEnd = tender.get('awardPeriod', {}).get('endDate')
     awardPeriodEnd = awardPeriodEnd and parse_date(awardPeriodEnd, TZ).astimezone(TZ)
     now = get_now()
-    if tender['status'] == 'active.enquiries' and not tenderPeriodStart and enquiryPeriodEnd and enquiryPeriodEnd < now:
+    if tender['status'] == 'active.enquiries' and not tenderPeriodStart and enquiryPeriodEnd and enquiryPeriodEnd <= now:
         LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
         return {'status': 'active.tendering'}, now
-    elif tender['status'] == 'active.enquiries' and tenderPeriodStart and tenderPeriodStart < now:
+    elif tender['status'] == 'active.enquiries' and tenderPeriodStart and tenderPeriodStart <= now:
         LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
         return {'status': 'active.tendering'}, now
     elif tender['status'] == 'active.tendering' and not tender.get('auctionPeriod') and tenderPeriodEnd and tenderPeriodEnd > now:
@@ -112,7 +112,7 @@ def check_tender(tender, db):
                 planned = False
         LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod['startDate']))
         return {'auctionPeriod': auctionPeriod}, now
-    elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd < now:
+    elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd <= now:
         numberOfBids = tender.get('numberOfBids', len(tender.get('bids', [])))
         if numberOfBids > 1:
             LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
@@ -148,7 +148,7 @@ def check_tender(tender, db):
             return {'auctionPeriod': auctionPeriod}, now
         else:
             return None, tenderAuctionEnd + MIN_PAUSE
-    elif tender['status'] == 'active.awarded' and awardPeriodEnd and awardPeriodEnd + STAND_STILL_TIME < now:
+    elif tender['status'] == 'active.awarded' and awardPeriodEnd and awardPeriodEnd + STAND_STILL_TIME <= now:
         pending_complaints = [
             i
             for i in tender.get('complaints', [])
@@ -175,7 +175,7 @@ def check_tender(tender, db):
         return None, tenderPeriodStart
     elif tenderPeriodEnd and tenderPeriodEnd > now:
         return None, tenderPeriodEnd
-    elif awardPeriodEnd and awardPeriodEnd > now:
+    elif awardPeriodEnd and awardPeriodEnd + STAND_STILL_TIME > now:
         return None, awardPeriodEnd + STAND_STILL_TIME
     return None, None
 
