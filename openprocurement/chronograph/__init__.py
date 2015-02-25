@@ -5,6 +5,7 @@ from logging import getLogger
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.gevent import GeventScheduler as Scheduler
 from couchdb import Server, Session
+from couchdb.http import Unauthorized, extract_credentials
 from datetime import datetime, timedelta
 from openprocurement.chronograph.jobstores import CouchDBJobStore
 from openprocurement.chronograph.scheduler import push
@@ -21,6 +22,9 @@ except ImportError:
 
 LOGGER = getLogger(__name__)
 TZ = timezone(get_localzone().tzname(datetime.now()))
+USER_SECURITY = {u'admins': {u'names': [], u'roles': ['_admin']}, u'members': {u'names': [], u'roles': ['_admin']}}
+DB_SECURITY = {u'admins': {u'names': [], u'roles': ['_admin']}, u'members': {u'names': [], u'roles': ['_admin']}}
+VALIDATE_DOC_UPDATE = "function(newDoc,oldDoc,userCtx){if(userCtx.roles.indexOf('_admin')!==-1){return;}else{throw({forbidden:'Only admins may edit the database'});}}"
 
 
 def set_journal_handler(event):
@@ -73,11 +77,26 @@ def main(global_config, **settings):
     config.registry.api_token = os.environ.get('API_TOKEN', settings.get('api.token'))
     session = Session(retry_delays=range(60))
     server = Server(settings.get('couchdb.url'), session=session)
+    try:
+        server.version()
+    except Unauthorized:
+        server = Server(extract_credentials(settings.get('couchdb.url'))[0])
+    if server.resource.credentials:
+        users_db = server['_users']
+        if USER_SECURITY != users_db.security:
+            users_db.security = USER_SECURITY
     config.registry.couchdb_server = server
     db_name = settings['couchdb.db_name']
     if db_name not in server:
         server.create(db_name)
     config.registry.db = server[db_name]
+    if server.resource.credentials:
+        if DB_SECURITY != config.registry.db.security:
+            config.registry.db.security = DB_SECURITY
+        auth_doc = config.registry.db.get('_design/_auth', {'_id': '_design/_auth'})
+        if auth_doc.get('validate_doc_update') != VALIDATE_DOC_UPDATE:
+            auth_doc['validate_doc_update'] = VALIDATE_DOC_UPDATE
+            config.registry.db.save(auth_doc)
     jobstores = {
         #'default': CouchDBJobStore(database=db_name,
                                    #client=server)
