@@ -18,6 +18,7 @@ requires = [
     'SQLAlchemy',
     'pysqlite',
     'pyramid_exclog',
+    'pbkdf2',
 ]
 
 setup(name='openprocurement.chronograph',

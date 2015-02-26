@@ -166,7 +166,7 @@ def check_tender(tender, db):
             if not awarded:
                 #LOG.info('Switched tender {} to {}'.format(tender['id'], 'complete'))
                 #return {'status': 'complete'}, None
-            #else:
+                #else:
                 LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
                 return {'status': 'unsuccessful'}, None
     if enquiryPeriodEnd and enquiryPeriodEnd > now:
@@ -219,9 +219,9 @@ def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, reques
         if changes:
             data = dumps({'data': changes})
             r = requests.patch(url,
-                            data=data,
-                            headers={'Content-Type': 'application/json', 'X-Client-Request-ID': request_id},
-                            auth=(api_token, ''))
+                               data=data,
+                               headers={'Content-Type': 'application/json', 'X-Client-Request-ID': request_id},
+                               auth=(api_token, ''))
             if r.status_code != requests.codes.ok:
                 LOG.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text))
                 next_check = get_now() + timedelta(minutes=1)

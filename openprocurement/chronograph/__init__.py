@@ -2,18 +2,18 @@ import gevent.monkey
 gevent.monkey.patch_all()
 import os
 from logging import getLogger
-from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
+#from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.gevent import GeventScheduler as Scheduler
 from couchdb import Server, Session
 from couchdb.http import Unauthorized, extract_credentials
 from datetime import datetime, timedelta
-from openprocurement.chronograph.jobstores import CouchDBJobStore
+#from openprocurement.chronograph.jobstores import CouchDBJobStore
 from openprocurement.chronograph.scheduler import push
 from pyramid.config import Configurator
 from pytz import timezone
 from tzlocal import get_localzone
 from pyramid.events import ApplicationCreated, ContextFound, BeforeRender
-
+from pbkdf2 import PBKDF2
 
 try:
     from systemd.journal import JournalHandler
@@ -104,7 +104,7 @@ def main(global_config, **settings):
             users_db.security = SECURITY
         username, password = server.resource.credentials
         user_doc = users_db.get('org.couchdb.user:{}'.format(username), {'_id': 'org.couchdb.user:{}'.format(username)})
-        if not user_doc.get('derived_key', '') or PBKDF2(password, user_doc.get('salt', ''), user_doc.get('iterations', 10)).hexread(int(len(user_doc.get('derived_key', ''))/2)) != user_doc.get('derived_key', ''):
+        if not user_doc.get('derived_key', '') or PBKDF2(password, user_doc.get('salt', ''), user_doc.get('iterations', 10)).hexread(int(len(user_doc.get('derived_key', '')) / 2)) != user_doc.get('derived_key', ''):
             user_doc.update({
                 "name": username,
                 "roles": [],
@@ -113,7 +113,7 @@ def main(global_config, **settings):
             })
             LOGGER.info("Updating chronograph db main user", extra={'MESSAGE_ID': 'update_chronograph_main_user'})
             users_db.save(user_doc)
-        security_users = [username,]
+        security_users = [username, ]
         if db_name not in aserver:
             aserver.create(db_name)
         db = aserver[db_name]
@@ -132,13 +132,12 @@ def main(global_config, **settings):
     config.registry.db = server[db_name]
 
     jobstores = {
-        #'default': CouchDBJobStore(database=db_name,
-                                   #client=server)
+        #'default': CouchDBJobStore(database=db_name, client=server)
     }
-    executors = {
-        'default': ThreadPoolExecutor(5),
+    #executors = {
+        #'default': ThreadPoolExecutor(5),
         #'processpool': ProcessPoolExecutor(5)
-    }
+    #}
     job_defaults = {
         'coalesce': False,
         'max_instances': 5
