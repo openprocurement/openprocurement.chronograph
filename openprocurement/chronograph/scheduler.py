@@ -26,10 +26,6 @@ def get_now():
     return datetime.now(TZ)
 
 
-def get_plan(db):
-    return db.get('plan', {'_id': 'plan'})
-
-
 def get_date(plan, date):
     plan_date_end = plan.get(date.isoformat(), WORKING_DAY_START.isoformat())
     plan_date = parse_date('2001-01-01T' + plan_date_end, TZ).astimezone(TZ)
@@ -94,6 +90,12 @@ def check_tender(tender, db):
     tenderPeriodEnd = tenderPeriodEnd and parse_date(tenderPeriodEnd, TZ).astimezone(TZ)
     awardPeriodEnd = tender.get('awardPeriod', {}).get('endDate')
     awardPeriodEnd = awardPeriodEnd and parse_date(awardPeriodEnd, TZ).astimezone(TZ)
+    standStillEnds = [
+        parse_date(a['complaintPeriod']['endDate'], TZ).astimezone(TZ)
+        for a in tender.get('awards', [])
+        if a.get('complaintPeriod', {}).get('endDate')
+    ]
+    standStillEnd = max(standStillEnds) if standStillEnds else None
     now = get_now()
     if tender['status'] == 'active.enquiries' and not tenderPeriodStart and enquiryPeriodEnd and enquiryPeriodEnd <= now:
         LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
@@ -123,15 +125,17 @@ def check_tender(tender, db):
         else:
             LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
             return {'status': 'unsuccessful', 'auctionPeriod': {'startDate': None}}, None
-    #elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
-        #planned = False
-        #while not planned:
-            #try:
-                #auctionPeriod = planning_auction(tender, now, db)
-                #planned = True
-            #except ResourceConflict:
-                #planned = False
-        #return {'auctionPeriod': auctionPeriod}, now
+    elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
+        planned = False
+        quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
+        while not planned:
+            try:
+                auctionPeriod = planning_auction(tender, tenderPeriodEnd, db, quick)
+                planned = True
+            except ResourceConflict:
+                planned = False
+        LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod['startDate']))
+        return {'auctionPeriod': auctionPeriod}, now
     elif tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
         tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
         tenderAuctionEnd = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), tenderAuctionStart)
@@ -148,7 +152,7 @@ def check_tender(tender, db):
             return {'auctionPeriod': auctionPeriod}, now
         else:
             return None, tenderAuctionEnd + MIN_PAUSE
-    elif tender['status'] == 'active.awarded' and awardPeriodEnd and awardPeriodEnd + STAND_STILL_TIME <= now:
+    elif tender['status'] == 'active.awarded' and standStillEnd and standStillEnd <= now:
         pending_complaints = [
             i
             for i in tender.get('complaints', [])
@@ -175,12 +179,13 @@ def check_tender(tender, db):
         return None, tenderPeriodStart
     elif tenderPeriodEnd and tenderPeriodEnd > now:
         return None, tenderPeriodEnd
-    elif awardPeriodEnd and awardPeriodEnd + STAND_STILL_TIME > now:
-        return None, awardPeriodEnd + STAND_STILL_TIME
+    elif awardPeriodEnd and standStillEnd > now:
+        return None, standStillEnd
     return None, None
 
 
 def get_request(url, auth, headers=None):
+    tx = ty = 1
     while True:
         try:
             r = requests.get(url, auth=auth, headers=headers)
@@ -188,11 +193,13 @@ def get_request(url, auth, headers=None):
             pass
         else:
             break
-        sleep(60)
+        sleep(tx)
+        tx, ty = ty, tx + ty
     return r
 
 
 def push(url, params):
+    tx = ty = 1
     while True:
         try:
             r = requests.get(url, params=params)
@@ -201,7 +208,8 @@ def push(url, params):
         else:
             if r.status_code == requests.codes.ok:
                 break
-        sleep(10)
+        sleep(tx)
+        tx, ty = ty, tx + ty
 
 
 def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, request_id):
@@ -227,7 +235,7 @@ def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, reques
                 next_check = get_now() + timedelta(minutes=1)
     if next_check:
         scheduler.add_job(push, 'date', run_date=next_check, timezone=TZ,
-                          id=tender_id, misfire_grace_time=60 * 60,
+                          id=tender_id, name="Resync {}".format(tender_id), misfire_grace_time=60 * 60,
                           args=[callback_url, None], replace_existing=True)
     return changes, next_check
 
@@ -247,14 +255,14 @@ def resync_tenders(scheduler, next_url, api_token, callback_url, request_id):
                 run_date = get_now()
                 if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
                     scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
-                                      id=tender['id'], misfire_grace_time=60 * 60,
+                                      id=tender['id'], name="Resync {}".format(tender['id']), misfire_grace_time=60 * 60,
                                       args=[callback_url + 'resync/' + tender['id'], None],
                                       replace_existing=True)
         except:
             break
     run_date = get_now() + timedelta(minutes=1)
     scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
-                      id='resync_all', misfire_grace_time=60 * 60,
+                      id='resync_all', name="Resync all", misfire_grace_time=60 * 60,
                       args=[callback_url + 'resync_all', {'url': next_url}],
                       replace_existing=True)
     return next_url
