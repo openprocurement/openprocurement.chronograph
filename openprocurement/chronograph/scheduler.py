@@ -164,15 +164,14 @@ def check_tender(tender, db):
             for i in a.get('complaints', [])
             if i['status'] == 'pending'
         ]
-        if not pending_complaints and not pending_awards_complaints:
-            awards = tender.get('awards', [])
-            awarded = [i for i in awards if i['status'] == 'active']
-            if not awarded:
-                #LOG.info('Switched tender {} to {}'.format(tender['id'], 'complete'))
-                #return {'status': 'complete'}, None
-                #else:
-                LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
-                return {'status': 'unsuccessful'}, None
+        awarded = [
+            i
+            for i in tender.get('awards', [])
+            if i['status'] == 'active'
+        ]
+        if not pending_complaints and not pending_awards_complaints and not awarded:
+            LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
+            return {'status': 'unsuccessful'}, None
     if enquiryPeriodEnd and enquiryPeriodEnd > now:
         return None, enquiryPeriodEnd
     elif tenderPeriodStart and tenderPeriodStart > now:
