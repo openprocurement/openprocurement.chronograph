@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-import unittest
 from datetime import datetime, timedelta
-from time import sleep
 from copy import deepcopy
+from iso8601 import parse_date
 
-from openprocurement.api.models import Tender, get_now
 from openprocurement.api.tests.base import test_tender_data
+from openprocurement.chronograph import TZ
 from openprocurement.chronograph.tests.base import BaseWebTest, BaseTenderWebTest
 
 
@@ -44,6 +43,7 @@ test_bids = [
         }
     }
 ]
+
 
 class SimpleTest(BaseWebTest):
 
@@ -108,7 +108,7 @@ class TenderTest(BaseTenderWebTest):
                 'tenderPeriod': {
                     'startDate': None
                 }
-             }
+            }
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
@@ -126,7 +126,7 @@ class TenderTest(BaseTenderWebTest):
                 'tenderPeriod': {
                     'startDate': datetime.now().isoformat()
                 }
-             }
+            }
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
@@ -144,7 +144,7 @@ class TenderTest(BaseTenderWebTest):
                 'tenderPeriod': {
                     'startDate': (datetime.now() + timedelta(hours=1)).isoformat()
                 }
-             }
+            }
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
@@ -153,16 +153,18 @@ class TenderTest(BaseTenderWebTest):
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.enquiries')
 
-    def test_set_auctionPeriod(self):
+    def test_set_auctionPeriod_nextday(self):
+        now = datetime.now()
         response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
             'data': {
                 "enquiryPeriod": {
-                    "endDate": datetime.now().isoformat()
+                    "endDate": now.isoformat()
                 },
                 'tenderPeriod': {
-                    'startDate': datetime.now().isoformat()
+                    'startDate': now.isoformat(),
+                    'endDate': (now + timedelta(days=7 - now.weekday())).replace(hour=13).isoformat()
                 }
-             }
+            }
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
@@ -177,6 +179,7 @@ class TenderTest(BaseTenderWebTest):
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
         self.assertIn('auctionPeriod', tender)
+        self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 1)
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
@@ -185,6 +188,62 @@ class TenderTest(BaseTenderWebTest):
         self.assertIn('jobs', response.json)
         self.assertIn(self.tender_id, response.json['jobs'])
         self.assertEqual(response.json['jobs'][self.tender_id], tender['tenderPeriod']['endDate'])
+
+    def test_set_auctionPeriod_skip_weekend(self):
+        now = datetime.now()
+        response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
+            'data': {
+                "enquiryPeriod": {
+                    "endDate": now.isoformat()
+                },
+                'tenderPeriod': {
+                    'startDate': now.isoformat(),
+                    'endDate': (now + timedelta(days=5 - now.weekday())).isoformat()
+                }
+            }
+        })
+        response = self.app.get('/resync/' + self.tender_id)
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, None)
+        response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
+        tender = response.json['data']
+        self.assertEqual(tender['status'], 'active.tendering')
+        response = self.app.get('/resync/' + self.tender_id)
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, None)
+        response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
+        tender = response.json['data']
+        self.assertEqual(tender['status'], 'active.tendering')
+        self.assertIn('auctionPeriod', tender)
+        self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 0)
+
+    def test_set_auctionPeriod_today(self):
+        now = datetime.now()
+        response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
+            'data': {
+                "enquiryPeriod": {
+                    "endDate": now.isoformat()
+                },
+                'tenderPeriod': {
+                    'startDate': now.isoformat(),
+                    'endDate': (now + timedelta(days=7 - now.weekday())).replace(hour=1).isoformat()
+                }
+            }
+        })
+        response = self.app.get('/resync/' + self.tender_id)
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, None)
+        response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
+        tender = response.json['data']
+        self.assertEqual(tender['status'], 'active.tendering')
+        response = self.app.get('/resync/' + self.tender_id)
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, None)
+        response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
+        tender = response.json['data']
+        self.assertEqual(tender['status'], 'active.tendering')
+        self.assertIn('auctionPeriod', tender)
+        self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 0)
 
     def test_switch_to_unsuccessful(self):
         response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
@@ -196,7 +255,7 @@ class TenderTest(BaseTenderWebTest):
                     'startDate': datetime.now().isoformat(),
                     "endDate": datetime.now().isoformat()
                 }
-             }
+            }
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
@@ -210,6 +269,7 @@ class TenderTest(BaseTenderWebTest):
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'unsuccessful')
+
 
 class TenderTest2(BaseTenderWebTest):
     initial_data = test_tender_data_quick

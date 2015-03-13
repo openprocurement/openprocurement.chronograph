@@ -2,20 +2,11 @@
 import unittest
 import webtest
 import os
-from openprocurement.chronograph import scheduler
 from openprocurement.api.tests.base import test_tender_data
 import requests.api
 from requests.models import Response
 from requests.structures import CaseInsensitiveDict
 from requests.utils import get_encoding_from_headers
-
-
-class PrefixedRequestClass(webtest.app.TestRequest):
-
-    @classmethod
-    def blank(cls, path, *args, **kwargs):
-        path = '/api/%s%s' % (VERSION, path)
-        return webtest.app.TestRequest.blank(path, *args, **kwargs)
 
 
 class BaseWebTest(unittest.TestCase):
@@ -27,9 +18,7 @@ class BaseWebTest(unittest.TestCase):
 
     def setUp(self):
         self.api = api = webtest.TestApp("config:tests.ini", relative_to=os.path.dirname(__file__))
-        #self.app.RequestClass = PrefixedRequestClass
         self.api.authorization = ('Basic', ('token', ''))
-        #self.couchdb_server = self.api.app.registry.couchdb_server
         self.api_db = self.api.app.registry.db
 
         def request(method, url, **kwargs):
@@ -69,19 +58,11 @@ class BaseWebTest(unittest.TestCase):
         self._request = requests.api.request
         requests.api.request = request
 
-        self._get_request = scheduler.get_request
-        #scheduler.get_request = get_request
-        self._push = scheduler.push
-        #scheduler.push = push
         self.app = app = webtest.TestApp("config:chronograph.ini", relative_to=os.path.dirname(__file__))
-        #self.app.RequestClass = PrefixedRequestClass
-        #self.app.authorization = ('Basic', ('token', ''))
         self.couchdb_server = self.app.app.registry.couchdb_server
         self.db = self.app.app.registry.db
 
     def tearDown(self):
-        scheduler.get_request = self._get_request
-        scheduler.push = self._push
         requests.api.request = self._request
         del self.couchdb_server[self.api_db.name]
         del self.couchdb_server[self.db.name]
