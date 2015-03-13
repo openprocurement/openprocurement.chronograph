@@ -85,7 +85,7 @@ def main(global_config, **settings):
     config.add_route('home', '/')
     config.add_route('resync_all', '/resync_all')
     config.add_route('resync', '/resync/{tender_id}')
-    config.scan()
+    config.scan(ignore='openprocurement.chronograph.tests')
     config.add_subscriber(start_scheduler, ApplicationCreated)
     config.registry.api_token = os.environ.get('API_TOKEN', settings.get('api.token'))
 
