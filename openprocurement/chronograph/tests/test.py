@@ -56,7 +56,7 @@ class SimpleTest(BaseWebTest):
     def test_resync_all(self):
         response = self.app.get('/resync_all')
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
 
     def test_resync_one(self):
         response = self.app.get('/resync/all')
@@ -74,7 +74,7 @@ class TenderTest(BaseTenderWebTest):
         self.assertIn('resync_all', response.json['jobs'])
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.app.get('/')
         self.assertEqual(response.status, '200 OK')
         self.assertIn('jobs', response.json)
@@ -84,7 +84,7 @@ class TenderTest(BaseTenderWebTest):
     def test_resync_all(self):
         response = self.app.get('/resync_all')
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.app.get('/')
         self.assertEqual(response.status, '200 OK')
         self.assertIn('jobs', response.json)
@@ -94,7 +94,7 @@ class TenderTest(BaseTenderWebTest):
     def test_wait_for_enquiryPeriod(self):
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.enquiries')
@@ -112,7 +112,7 @@ class TenderTest(BaseTenderWebTest):
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
@@ -130,7 +130,7 @@ class TenderTest(BaseTenderWebTest):
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
@@ -148,7 +148,7 @@ class TenderTest(BaseTenderWebTest):
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.enquiries')
@@ -168,13 +168,13 @@ class TenderTest(BaseTenderWebTest):
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
@@ -182,7 +182,7 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 1)
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.app.get('/')
         self.assertEqual(response.status, '200 OK')
         self.assertIn('jobs', response.json)
@@ -204,13 +204,13 @@ class TenderTest(BaseTenderWebTest):
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
@@ -232,13 +232,13 @@ class TenderTest(BaseTenderWebTest):
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
@@ -259,7 +259,7 @@ class TenderTest(BaseTenderWebTest):
         })
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
@@ -278,7 +278,7 @@ class TenderTest2(BaseTenderWebTest):
     def test_switch_to_qualification(self):
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.qualification')
@@ -286,7 +286,7 @@ class TenderTest2(BaseTenderWebTest):
     def test_switch_to_unsuccessful(self):
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.qualification')
@@ -297,7 +297,7 @@ class TenderTest2(BaseTenderWebTest):
         self.assertEqual(response.content_type, 'application/json')
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.awarded')
@@ -319,7 +319,7 @@ class TenderTest3(BaseTenderWebTest):
     def test_switch_to_auction(self):
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.auction')
@@ -327,24 +327,22 @@ class TenderTest3(BaseTenderWebTest):
     def test_reschedule_auction(self):
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.auction')
         self.assertNotIn('auctionPeriod', tender)
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
         tender = self.api_db.get(self.tender_id)
         self.assertIn('auctionPeriod', tender)
         tender['auctionPeriod']['startDate'] = (datetime.now() - timedelta(hours=1)).isoformat()
         self.api_db.save(tender)
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, None)
+        self.assertNotEqual(response.json, None)
 
 
 class TenderTest4(TenderTest3):
-    initial_data = test_tender_data_test_quick
-    initial_bids = test_bids
     sandbox = True

@@ -15,20 +15,24 @@ def resync_all(request):
     url = request.params.get('url', '')
     if not url:
         url = request.registry.api_url + 'tenders?mode=_all_'
-    resync_tenders(request.registry.scheduler,
-                   url,
-                   request.registry.api_token,
-                   request.registry.callback_url,
-                   request.environ.get('REQUEST_ID', ''))
+    return resync_tenders(
+        request.registry.scheduler,
+        url,
+        request.registry.api_token,
+        request.registry.callback_url,
+        request.environ.get('REQUEST_ID', '')
+    )
 
 
 @view_config(route_name='resync', renderer='json')
 def resync(request):
     tid = request.matchdict['tender_id']
-    resync_tender(request.registry.scheduler,
-                  request.registry.api_url + 'tenders/' + tid,
-                  request.registry.api_token,
-                  request.registry.callback_url + 'resync/' + tid,
-                  request.registry.db,
-                  tid,
-                  request.environ.get('REQUEST_ID', ''))
+    return resync_tender(
+        request.registry.scheduler,
+        request.registry.api_url + 'tenders/' + tid,
+        request.registry.api_token,
+        request.registry.callback_url + 'resync/' + tid,
+        request.registry.db,
+        tid,
+        request.environ.get('REQUEST_ID', '')
+    )

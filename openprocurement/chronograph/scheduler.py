@@ -236,7 +236,7 @@ def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, reques
         scheduler.add_job(push, 'date', run_date=next_check, timezone=TZ,
                           id=tender_id, name="Resync {}".format(tender_id), misfire_grace_time=60 * 60,
                           args=[callback_url, None], replace_existing=True)
-    return changes, next_check
+    return next_check and next_check.isoformat()
 
 
 def resync_tenders(scheduler, next_url, api_token, callback_url, request_id):
