@@ -11,12 +11,12 @@ from openprocurement.chronograph.tests.base import BaseWebTest, BaseTenderWebTes
 test_tender_data_quick = deepcopy(test_tender_data)
 test_tender_data_quick.update({
     "enquiryPeriod": {
-        'startDate': datetime.now().isoformat(),
-        "endDate": datetime.now().isoformat()
+        'startDate': datetime.now(TZ).isoformat(),
+        "endDate": datetime.now(TZ).isoformat()
     },
     'tenderPeriod': {
-        'startDate': datetime.now().isoformat(),
-        "endDate": datetime.now().isoformat()
+        'startDate': datetime.now(TZ).isoformat(),
+        "endDate": datetime.now(TZ).isoformat()
     }
 })
 test_tender_data_test_quick = deepcopy(test_tender_data_quick)
@@ -103,7 +103,7 @@ class TenderTest(BaseTenderWebTest):
         response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
             'data': {
                 "enquiryPeriod": {
-                    "endDate": datetime.now().isoformat()
+                    "endDate": datetime.now(TZ).isoformat()
                 },
                 'tenderPeriod': {
                     'startDate': None
@@ -121,10 +121,10 @@ class TenderTest(BaseTenderWebTest):
         response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
             'data': {
                 "enquiryPeriod": {
-                    "endDate": datetime.now().isoformat()
+                    "endDate": datetime.now(TZ).isoformat()
                 },
                 'tenderPeriod': {
-                    'startDate': datetime.now().isoformat()
+                    'startDate': datetime.now(TZ).isoformat()
                 }
             }
         })
@@ -139,10 +139,10 @@ class TenderTest(BaseTenderWebTest):
         response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
             'data': {
                 "enquiryPeriod": {
-                    "endDate": datetime.now().isoformat()
+                    "endDate": datetime.now(TZ).isoformat()
                 },
                 'tenderPeriod': {
-                    'startDate': (datetime.now() + timedelta(hours=1)).isoformat()
+                    'startDate': (datetime.now(TZ) + timedelta(hours=1)).isoformat()
                 }
             }
         })
@@ -154,7 +154,7 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(tender['status'], 'active.enquiries')
 
     def test_set_auctionPeriod_nextday(self):
-        now = datetime.now()
+        now = datetime.now(TZ)
         response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
             'data': {
                 "enquiryPeriod": {
@@ -190,7 +190,7 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(response.json['jobs'][self.tender_id], tender['tenderPeriod']['endDate'])
 
     def test_set_auctionPeriod_skip_weekend(self):
-        now = datetime.now()
+        now = datetime.now(TZ)
         response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
             'data': {
                 "enquiryPeriod": {
@@ -218,7 +218,7 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 0)
 
     def test_set_auctionPeriod_today(self):
-        now = datetime.now()
+        now = datetime.now(TZ)
         response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
             'data': {
                 "enquiryPeriod": {
@@ -249,11 +249,11 @@ class TenderTest(BaseTenderWebTest):
         response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
             'data': {
                 "enquiryPeriod": {
-                    "endDate": datetime.now().isoformat()
+                    "endDate": datetime.now(TZ).isoformat()
                 },
                 'tenderPeriod': {
-                    'startDate': datetime.now().isoformat(),
-                    "endDate": datetime.now().isoformat()
+                    'startDate': datetime.now(TZ).isoformat(),
+                    "endDate": datetime.now(TZ).isoformat()
                 }
             }
         })
@@ -302,7 +302,7 @@ class TenderTest2(BaseTenderWebTest):
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.awarded')
         tender = self.api_db.get(self.tender_id)
-        tender['awards'][0]['complaintPeriod']['endDate'] = datetime.now().isoformat()
+        tender['awards'][0]['complaintPeriod']['endDate'] = datetime.now(TZ).isoformat()
         self.api_db.save(tender)
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
@@ -337,7 +337,7 @@ class TenderTest3(BaseTenderWebTest):
         self.assertNotEqual(response.json, None)
         tender = self.api_db.get(self.tender_id)
         self.assertIn('auctionPeriod', tender)
-        tender['auctionPeriod']['startDate'] = (datetime.now() - timedelta(hours=1)).isoformat()
+        tender['auctionPeriod']['startDate'] = (datetime.now(TZ) - timedelta(hours=1)).isoformat()
         self.api_db.save(tender)
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
