@@ -12,7 +12,7 @@ from logging import getLogger
 
 
 LOG = getLogger(__name__)
-TZ = timezone(get_localzone().tzname(datetime.now()))
+TZ = timezone(os.environ['TZ'] if 'TZ' in os.environ else 'Europe/Kiev')
 WORKING_DAY_START = time(11, 0, tzinfo=TZ)
 WORKING_DAY_END = time(16, 0, tzinfo=TZ)
 ROUNDING = timedelta(minutes=15)
@@ -42,10 +42,10 @@ def set_date(plan, date, time):
 
 def calc_auction_end_time(bids, start):
     end = start + bids * BIDDER_TIME + SERVICE_TIME + MIN_PAUSE
-    seconds = (end - datetime.combine(end, WORKING_DAY_START)).seconds
+    seconds = (end - datetime.combine(end, WORKING_DAY_START).astimezone(TZ)).seconds
     roundTo = ROUNDING.seconds
     rounding = (seconds + roundTo / 2) // roundTo * roundTo
-    return end + timedelta(0, rounding - seconds, -end.microsecond)
+    return (end + timedelta(0, rounding - seconds, -end.microsecond)).astimezone(TZ)
 
 
 def planning_auction(tender, start, db, quick=False):
@@ -58,7 +58,7 @@ def planning_auction(tender, start, db, quick=False):
     if quick:
         quick_start = calc_auction_end_time(0, start)
         return {'startDate': quick_start.isoformat()}
-    elif start.timetz() < WORKING_DAY_START:
+    elif start.time() < WORKING_DAY_START:
         nextDate = start.date()
     else:
         nextDate = start.date() + timedelta(days=1)
@@ -70,17 +70,17 @@ def planning_auction(tender, start, db, quick=False):
         if dayStart >= WORKING_DAY_END:
             nextDate += timedelta(days=1)
             continue
-        start = datetime.combine(nextDate, dayStart)
+        start = datetime.combine(nextDate, dayStart).astimezone(TZ)
         end = calc_auction_end_time(3, start)  # len(tender.get('bids', [])
-        if dayStart == WORKING_DAY_START and end > datetime.combine(nextDate, WORKING_DAY_END):
+        if dayStart == WORKING_DAY_START and end > datetime.combine(nextDate, WORKING_DAY_END).astimezone(TZ):
             break
-        elif end <= datetime.combine(nextDate, WORKING_DAY_END):
+        elif end <= datetime.combine(nextDate, WORKING_DAY_END).astimezone(TZ):
             break
         nextDate += timedelta(days=1)
     for n in range((end.date() - start.date()).days):
         date = start.date() + timedelta(n)
         set_date(plan, date.date(), WORKING_DAY_END)
-    set_date(plan, end.date(), end.timetz())
+    set_date(plan, end.date(), end.time())
     db.save(plan)
     return {'startDate': start.isoformat()}
 

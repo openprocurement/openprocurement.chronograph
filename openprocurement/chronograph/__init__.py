@@ -22,7 +22,7 @@ except ImportError:
 
 INIT_LOGGER = getLogger("{}.init".format(__name__))
 LOGGER = getLogger(__name__)
-TZ = timezone(get_localzone().tzname(datetime.now()))
+TZ = timezone(os.environ['TZ'] if 'TZ' in os.environ else 'Europe/Kiev')
 SECURITY = {u'admins': {u'names': [], u'roles': ['_admin']}, u'members': {u'names': [], u'roles': ['_admin']}}
 VALIDATE_DOC_ID = '_design/_auth'
 VALIDATE_DOC_UPDATE = """function(newDoc, oldDoc, userCtx){
