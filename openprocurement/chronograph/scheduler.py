@@ -13,8 +13,8 @@ from logging import getLogger
 
 LOG = getLogger(__name__)
 TZ = timezone(os.environ['TZ'] if 'TZ' in os.environ else 'Europe/Kiev')
-WORKING_DAY_START = time(11, 0, tzinfo=TZ)
-WORKING_DAY_END = time(16, 0, tzinfo=TZ)
+WORKING_DAY_START = time(11, 0)
+WORKING_DAY_END = time(16, 0)
 ROUNDING = timedelta(minutes=15)
 MIN_PAUSE = timedelta(minutes=5)
 BIDDER_TIME = timedelta(minutes=6)
@@ -23,13 +23,13 @@ STAND_STILL_TIME = timedelta(days=1)
 
 
 def get_now():
-    return datetime.now(TZ)
+    return TZ.localize(datetime.now())
 
 
 def get_date(plan, date):
     plan_date_end = plan.get(date.isoformat(), WORKING_DAY_START.isoformat())
-    plan_date = parse_date('2001-01-01T' + plan_date_end, TZ).astimezone(TZ)
-    return plan_date.timetz()
+    plan_date = TZ.localize(parse_date(date.isoformat() + 'T' + plan_date_end, None))
+    return plan_date.time()
 
 
 def set_date(plan, date, time):
@@ -38,7 +38,7 @@ def set_date(plan, date, time):
 
 def calc_auction_end_time(bids, start):
     end = start + bids * BIDDER_TIME + SERVICE_TIME + MIN_PAUSE
-    seconds = (end - datetime.combine(end, WORKING_DAY_START).astimezone(TZ)).seconds
+    seconds = (end - TZ.localize(datetime.combine(end, WORKING_DAY_START))).seconds
     roundTo = ROUNDING.seconds
     rounding = (seconds + roundTo / 2) // roundTo * roundTo
     return (end + timedelta(0, rounding - seconds, -end.microsecond)).astimezone(TZ)
@@ -66,11 +66,11 @@ def planning_auction(tender, start, db, quick=False):
         if dayStart >= WORKING_DAY_END:
             nextDate += timedelta(days=1)
             continue
-        start = datetime.combine(nextDate, dayStart).astimezone(TZ)
+        start = TZ.localize(datetime.combine(nextDate, dayStart))
         end = calc_auction_end_time(3, start)  # len(tender.get('bids', [])
-        if dayStart == WORKING_DAY_START and end > datetime.combine(nextDate, WORKING_DAY_END).astimezone(TZ):
+        if dayStart == WORKING_DAY_START and end > TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)):
             break
-        elif end <= datetime.combine(nextDate, WORKING_DAY_END).astimezone(TZ):
+        elif end <= TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)):
             break
         nextDate += timedelta(days=1)
     for n in range((end.date() - start.date()).days):
