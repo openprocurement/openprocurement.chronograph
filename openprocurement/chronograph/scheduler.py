@@ -32,7 +32,8 @@ def get_plan(db):
 
 def get_date(plan, date):
     plan_date_end = plan.get(date.isoformat(), WORKING_DAY_START.isoformat())
-    plan_date = TZ.localize(parse_date(date.isoformat() + 'T' + plan_date_end, None))
+    plan_date = parse_date(date.isoformat() + 'T' + plan_date_end, None)
+    plan_date = plan_date.astimezone(TZ) if plan_date.tzinfo else TZ.localize(plan_date)
     return plan_date.time()
 
 
