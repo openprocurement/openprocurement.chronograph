@@ -63,6 +63,16 @@ class SimpleTest(BaseWebTest):
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
 
+    def test_calendar(self):
+        response = self.app.get('/calendar')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, [])
+
+    def test_calendar_entry(self):
+        response = self.app.get('/calendar/2015-04-23')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, False)
+
 
 class TenderTest(BaseTenderWebTest):
 
@@ -216,6 +226,41 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(tender['status'], 'active.tendering')
         self.assertIn('auctionPeriod', tender)
         self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 0)
+
+    def test_set_auctionPeriod_skip_holidays(self):
+        now = datetime.now(TZ)
+        today = now.date()
+        for i in range(10):
+            date = today + timedelta(days=i)
+            self.app.post('/calendar/' + date.isoformat())
+        calendar = self.app.get('/calendar').json
+        response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
+            'data': {
+                "enquiryPeriod": {
+                    "endDate": now.isoformat()
+                },
+                'tenderPeriod': {
+                    'startDate': now.isoformat(),
+                    'endDate': (now + timedelta(days=1)).isoformat()
+                }
+            }
+        })
+        response = self.app.get('/resync/' + self.tender_id)
+        self.assertEqual(response.status, '200 OK')
+        self.assertNotEqual(response.json, None)
+        response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
+        tender = response.json['data']
+        self.assertEqual(tender['status'], 'active.tendering')
+        response = self.app.get('/resync/' + self.tender_id)
+        self.assertEqual(response.status, '200 OK')
+        self.assertNotEqual(response.json, None)
+        response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
+        tender = response.json['data']
+        self.assertEqual(tender['status'], 'active.tendering')
+        self.assertIn('auctionPeriod', tender)
+        auctionPeriodstart = parse_date(tender['auctionPeriod']['startDate'], TZ)
+        self.assertNotIn(auctionPeriodstart.date().isoformat(), calendar)
+        self.assertTrue(auctionPeriodstart.date() > date)
 
     def test_set_auctionPeriod_today(self):
         now = datetime.now(TZ)
