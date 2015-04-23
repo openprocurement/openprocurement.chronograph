@@ -1,9 +1,15 @@
 from pyramid.view import view_config
-from openprocurement.chronograph.scheduler import resync_tender, resync_tenders
+from openprocurement.chronograph.scheduler import (
+    resync_tender,
+    resync_tenders,
+    get_calendar,
+    set_holiday,
+    delete_holiday,
+)
 
 
 @view_config(route_name='home', renderer='json')
-def my_view(request):
+def home_view(request):
     return {'jobs': dict([
         (i.id, i.next_run_time.isoformat())
         for i in request.registry.scheduler.get_jobs()
@@ -32,3 +38,23 @@ def resync(request):
                   request.registry.db,
                   tid,
                   request.environ.get('REQUEST_ID', ''))
+
+
+@view_config(route_name='calendar', renderer='json')
+def calendar_view(request):
+    calendar = get_calendar(request.registry.db)
+    return sorted([i for i in calendar if not i.startswith('_')])
+
+
+@view_config(route_name='calendar_entry', renderer='json')
+def calendar_entry_view(request):
+    date = request.matchdict['date']
+    if request.method == 'GET':
+        calendar = get_calendar(request.registry.db)
+        return calendar.get(date, False)
+    elif request.method == 'POST':
+        set_holiday(request.registry.db, date)
+        return True
+    elif request.method == 'DELETE':
+        delete_holiday(request.registry.db, date)
+        return False
