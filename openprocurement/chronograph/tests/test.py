@@ -72,6 +72,15 @@ class SimpleTest(BaseWebTest):
         response = self.app.get('/calendar/2015-04-23')
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, False)
+        response = self.app.post('/calendar/2015-04-23')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, True)
+        response = self.app.delete('/calendar/2015-04-23')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, False)
+        response = self.app.get('/calendar/2015-04-23')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, False)
 
 
 class TenderTest(BaseTenderWebTest):
