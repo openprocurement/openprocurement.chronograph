@@ -13,6 +13,7 @@ from logging import getLogger
 
 LOG = getLogger(__name__)
 TZ = timezone(os.environ['TZ'] if 'TZ' in os.environ else 'Europe/Kiev')
+CALENDAR_ID = 'calendar'
 WORKING_DAY_START = time(11, 0)
 WORKING_DAY_END = time(16, 0)
 ROUNDING = timedelta(minutes=15)
@@ -24,6 +25,25 @@ STAND_STILL_TIME = timedelta(days=1)
 
 def get_now():
     return TZ.localize(datetime.now())
+
+
+def get_calendar(db, calendar_id=CALENDAR_ID):
+    return db.get(calendar_id, {'_id': calendar_id})
+
+
+def set_holiday(db, day, calendar_id=CALENDAR_ID):
+    calendar = get_calendar(db)
+    key = parse_date(day).date().isoformat()
+    calendar[key] = True
+    db.save(calendar)
+
+
+def delete_holiday(db, day, calendar_id=CALENDAR_ID):
+    calendar = get_calendar(db)
+    key = parse_date(day).date().isoformat()
+    if key in calendar:
+        calendar.pop(key)
+        db.save(calendar)
 
 
 def get_date(plan, date):
@@ -45,6 +65,7 @@ def calc_auction_end_time(bids, start):
 
 
 def planning_auction(tender, start, db, quick=False):
+    calendar = get_calendar(db)
     cpv_group = tender.get('items', [{}])[0].get('classification', {}).get('id')
     plan_id = 'plan_{}'.format(cpv_group[:3]) if cpv_group else 'plan'
     mode = tender.get('mode', '')
@@ -59,7 +80,7 @@ def planning_auction(tender, start, db, quick=False):
     else:
         nextDate = start.date() + timedelta(days=1)
     while True:
-        if nextDate.weekday() in [5, 6]:  # skip Saturday and Sunday
+        if calendar.get(nextDate.isoformat()) or nextDate.weekday() in [5, 6]:  # skip Saturday and Sunday
             nextDate += timedelta(days=1)
             continue
         dayStart = get_date(plan, nextDate)
