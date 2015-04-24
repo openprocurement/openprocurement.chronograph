@@ -17,7 +17,7 @@ CALENDAR_ID = 'calendar'
 WORKING_DAY_START = time(11, 0)
 WORKING_DAY_END = time(16, 0)
 ROUNDING = timedelta(minutes=15)
-MIN_PAUSE = timedelta(minutes=5)
+MIN_PAUSE = timedelta(minutes=3)
 BIDDER_TIME = timedelta(minutes=6)
 SERVICE_TIME = timedelta(minutes=9)
 STAND_STILL_TIME = timedelta(days=1)
@@ -61,7 +61,7 @@ def calc_auction_end_time(bids, start):
     end = start + bids * BIDDER_TIME + SERVICE_TIME + MIN_PAUSE
     seconds = (end - TZ.localize(datetime.combine(end, WORKING_DAY_START))).seconds
     roundTo = ROUNDING.seconds
-    rounding = (seconds + roundTo / 2) // roundTo * roundTo
+    rounding = (seconds + roundTo + timedelta(seconds=-1)) // roundTo * roundTo
     return (end + timedelta(0, rounding - seconds, -end.microsecond)).astimezone(TZ)
 
 
