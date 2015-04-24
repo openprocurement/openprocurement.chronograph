@@ -61,7 +61,7 @@ def calc_auction_end_time(bids, start):
     end = start + bids * BIDDER_TIME + SERVICE_TIME + MIN_PAUSE
     seconds = (end - TZ.localize(datetime.combine(end, WORKING_DAY_START))).seconds
     roundTo = ROUNDING.seconds
-    rounding = (seconds + roundTo + timedelta(seconds=-1)) // roundTo * roundTo
+    rounding = (seconds + roundTo - 1) // roundTo * roundTo
     return (end + timedelta(0, rounding - seconds, -end.microsecond)).astimezone(TZ)
 
 
