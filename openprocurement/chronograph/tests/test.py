@@ -3,9 +3,8 @@ from datetime import datetime, timedelta
 from copy import deepcopy
 from iso8601 import parse_date
 
-from openprocurement.api.tests.base import test_tender_data
 from openprocurement.chronograph import TZ
-from openprocurement.chronograph.tests.base import BaseWebTest, BaseTenderWebTest
+from openprocurement.chronograph.tests.base import BaseWebTest, BaseTenderWebTest, test_tender_data
 
 
 test_tender_data_quick = deepcopy(test_tender_data)
