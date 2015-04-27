@@ -2,11 +2,73 @@
 import unittest
 import webtest
 import os
-from openprocurement.api.tests.base import test_tender_data
 import requests.api
 from requests.models import Response
 from requests.structures import CaseInsensitiveDict
 from requests.utils import get_encoding_from_headers
+try:
+    from openprocurement.api.tests.base import test_tender_data
+except ImportError:
+    from datetime import datetime, timedelta
+    now = datetime.now()
+    test_tender_data = {
+        "title": u"футляри до державних нагород",
+        "procuringEntity": {
+            "name": u"Державне управління справами",
+            "identifier": {
+                "scheme": u"UA-EDR",
+                "id": u"00037256",
+                "uri": u"http://www.dus.gov.ua/"
+            },
+            "address": {
+                "countryName": u"Україна",
+                "postalCode": u"01220",
+                "region": u"м. Київ",
+                "locality": u"м. Київ",
+                "streetAddress": u"вул. Банкова, 11, корпус 1"
+            },
+            "contactPoint": {
+                "name": u"Державне управління справами",
+                "telephone": u"0440000000"
+            }
+        },
+        "value": {
+            "amount": 500,
+            "currency": u"UAH"
+        },
+        "minimalStep": {
+            "amount": 35,
+            "currency": u"UAH"
+        },
+        "items": [
+            {
+                "description": u"футляри до державних нагород",
+                "classification": {
+                    "scheme": u"CPV",
+                    "id": u"44617100-9",
+                    "description": u"Cartons"
+                },
+                "additionalClassifications": [
+                    {
+                        "scheme": u"ДКПП",
+                        "id": u"17.21.1",
+                        "description": u"папір і картон гофровані, паперова й картонна тара"
+                    }
+                ],
+                "unit": {
+                    "name": u"item",
+                    "code": u"44617100-9"
+                },
+                "quantity": 5
+            }
+        ],
+        "enquiryPeriod": {
+            "endDate": (now + timedelta(days=7)).isoformat()
+        },
+        "tenderPeriod": {
+            "endDate": (now + timedelta(days=14)).isoformat()
+        }
+    }
 
 
 class BaseWebTest(unittest.TestCase):
