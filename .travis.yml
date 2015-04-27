@@ -1,0 +1,23 @@
+language: python
+python:
+  - "2.7"
+services:
+  - couchdb
+before_install:
+  - easy_install -U setuptools
+install:
+  - pip install https://github.com/openprocurement/openprocurement.api/archive/master.zip --use-mirrors
+  - pip install . --use-mirrors
+before_script:
+  - pip install -r test_requirements.txt --use-mirrors
+script:
+  - nosetests
+after_success:
+  - coveralls
+notifications:
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/15e2534ac51757c92e72
+    on_success: always
+    on_failure: always
+    on_start: false
