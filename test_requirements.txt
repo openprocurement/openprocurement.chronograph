@@ -1,3 +1,15 @@
+http://op:x9W3jZ@dist.quintagroup.com/op/rfc6266-0.0.6.zip
+pyramid
+chaussette
+gevent
+couchdb
+apscheduler
+requests
+iso8601
+SQLAlchemy
+pysqlite
+pyramid_exclog
+pbkdf2
 webtest
 python-coveralls
 -e git://github.com/openprocurement/openprocurement.api.git@master#egg=openprocurement.api

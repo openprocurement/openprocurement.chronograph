@@ -6,8 +6,6 @@ services:
 before_install:
   - easy_install -U setuptools
 install:
-  - pip install . --use-mirrors
-before_script:
   - pip install -r test_requirements.txt --use-mirrors
 script:
   - nosetests
