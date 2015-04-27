@@ -6,7 +6,6 @@ services:
 before_install:
   - easy_install -U setuptools
 install:
-  - pip install https://github.com/openprocurement/openprocurement.api/archive/master.zip --use-mirrors
   - pip install . --use-mirrors
 before_script:
   - pip install -r test_requirements.txt --use-mirrors

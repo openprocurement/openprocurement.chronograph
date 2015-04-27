@@ -1,2 +1,3 @@
 webtest
 python-coveralls
+[-e] git://github.com/openprocurement/openprocurement.api.git@master#egg=openprocurement.api
