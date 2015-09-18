@@ -12,6 +12,8 @@ before_install:
   - python2 bootstrap.py
 install:
   - bin/buildout -N
+env:
+  - TZ=Europe/Kiev
 script:
   - bin/nosetests
 after_success:
