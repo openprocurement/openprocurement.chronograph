@@ -20,7 +20,9 @@ requires = [
     'pyramid_exclog',
     'pbkdf2',
 ]
+
 test_requires = requires + [
+    'openprocurement.api',
     'webtest',
     'python-coveralls',
 ]
@@ -45,6 +47,7 @@ setup(name='openprocurement.chronograph',
       zip_safe=False,
       install_requires=requires,
       tests_require=test_requires,
+      extras_require={'test': test_requires},
       test_suite="openprocurement.chronograph",
       entry_points="""\
       [paste.app_factory]
