@@ -1,17 +1,21 @@
 language: python
+sudo: false
 python:
   - "2.7"
 services:
   - couchdb
+cache:
+  directories:
+    - eggs
 before_install:
-  - easy_install -U setuptools
+  - pip install setuptools==7.0
+  - python2 bootstrap.py
 install:
-  - pip install -r test_requirements.txt --use-mirrors
-  - python setup.py develop
+  - bin/buildout -N
 script:
-  - nosetests
+  - bin/nosetests
 after_success:
-  - coveralls
+  - bin/coveralls
 notifications:
   webhooks:
     urls:
