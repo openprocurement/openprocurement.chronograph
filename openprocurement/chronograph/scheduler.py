@@ -92,7 +92,7 @@ def planning_auction(tender, start, db, quick=False):
     streams = get_streams(db)
     if quick:
         quick_start = calc_auction_end_time(0, start)
-        return {'startDate': quick_start.isoformat()}
+        return quick_start
     start += timedelta(hours=1)
     if start.time() < WORKING_DAY_START:
         nextDate = start.date()
