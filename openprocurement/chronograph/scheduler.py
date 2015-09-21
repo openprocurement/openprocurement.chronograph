@@ -7,6 +7,7 @@ from pytz import timezone
 from iso8601 import parse_date
 from couchdb.http import ResourceConflict
 from time import sleep
+from random import randint
 from logging import getLogger
 
 
@@ -25,6 +26,10 @@ STAND_STILL_TIME = timedelta(days=1)
 
 def get_now():
     return TZ.localize(datetime.now())
+
+
+def randomize(dt):
+    return dt + timedelta(seconds=randint(0,900))
 
 
 def get_calendar(db, calendar_id=CALENDAR_ID):
@@ -117,7 +122,7 @@ def planning_auction(tender, start, db, quick=False):
         #_, dayStream = get_date(db, mode, date.date())
         #set_date(db, mode, date.date(), WORKING_DAY_END, dayStream+1)
     set_date(db, mode, end.date(), end.time(), stream)
-    return {'startDate': start.isoformat()}
+    return start
 
 
 def check_tender(tender, db):
@@ -151,8 +156,9 @@ def check_tender(tender, db):
                 planned = True
             except ResourceConflict:
                 planned = False
-        LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod['startDate']))
-        return {'auctionPeriod': auctionPeriod}, now
+        auctionPeriod = randomize(auctionPeriod).isoformat()
+        LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod))
+        return {'auctionPeriod': {'startDate': auctionPeriod}}, now
     elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd <= now:
         numberOfBids = tender.get('numberOfBids', len(tender.get('bids', [])))
         if numberOfBids > 1:
@@ -173,8 +179,9 @@ def check_tender(tender, db):
                 planned = True
             except ResourceConflict:
                 planned = False
-        LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod['startDate']))
-        return {'auctionPeriod': auctionPeriod}, now
+        auctionPeriod = randomize(auctionPeriod).isoformat()
+        LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod))
+        return {'auctionPeriod': {'startDate': auctionPeriod}}, now
     elif tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
         tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
         tenderAuctionEnd = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), tenderAuctionStart)
@@ -187,8 +194,9 @@ def check_tender(tender, db):
                     planned = True
                 except ResourceConflict:
                     planned = False
-            LOG.info('Replanned auction for tender {} to {}'.format(tender['id'], auctionPeriod['startDate']))
-            return {'auctionPeriod': auctionPeriod}, now
+            auctionPeriod = randomize(auctionPeriod).isoformat()
+            LOG.info('Replanned auction for tender {} to {}'.format(tender['id'], auctionPeriod))
+            return {'auctionPeriod': {'startDate': auctionPeriod}}, now
         else:
             return None, tenderAuctionEnd + MIN_PAUSE
     elif tender['status'] == 'active.awarded' and standStillEnd and standStillEnd <= now:
