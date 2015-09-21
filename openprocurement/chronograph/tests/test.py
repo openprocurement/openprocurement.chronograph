@@ -2,11 +2,15 @@
 from datetime import datetime, timedelta
 from copy import deepcopy
 from iso8601 import parse_date
+from time import sleep
+from logging import getLogger
 
 from openprocurement.chronograph import TZ
+from openprocurement.chronograph.scheduler import planning_auction
 from openprocurement.chronograph.tests.base import BaseWebTest, BaseTenderWebTest, test_tender_data
 
 
+LOGGER = getLogger(__name__)
 test_tender_data_quick = deepcopy(test_tender_data)
 test_tender_data_quick.update({
     "enquiryPeriod": {
@@ -81,8 +85,22 @@ class SimpleTest(BaseWebTest):
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, False)
 
+    def test_streams(self):
+        response = self.app.get('/streams')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, 10)
+        response = self.app.post('/streams', {'streams': 20})
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, True)
+        response = self.app.get('/streams')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, 20)
+        response = self.app.post('/streams', {'streams': -20})
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, False)
 
-class TenderTest(BaseTenderWebTest):
+
+class TendersTest(BaseTenderWebTest):
 
     def test_list_jobs(self):
         response = self.app.get('/')
@@ -103,11 +121,16 @@ class TenderTest(BaseTenderWebTest):
         response = self.app.get('/resync_all')
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
+        sleep(0.1)
         response = self.app.get('/')
         self.assertEqual(response.status, '200 OK')
         self.assertIn('jobs', response.json)
         self.assertEqual(len(response.json['jobs']), 2)
         self.assertIn(self.tender_id, response.json['jobs'])
+
+
+class TenderTest(BaseTenderWebTest):
+    scheduler = False
 
     def test_wait_for_enquiryPeriod(self):
         response = self.app.get('/resync/' + self.tender_id)
@@ -201,6 +224,7 @@ class TenderTest(BaseTenderWebTest):
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
+        self.app.app.registry.scheduler.start()
         response = self.app.get('/')
         self.assertEqual(response.status, '200 OK')
         self.assertIn('jobs', response.json)
@@ -220,17 +244,22 @@ class TenderTest(BaseTenderWebTest):
                 }
             }
         })
+        LOGGER.info('before call1')
         response = self.app.get('/resync/' + self.tender_id)
+        LOGGER.info('after call1')
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
+        LOGGER.info('before call2')
         response = self.app.get('/resync/' + self.tender_id)
+        LOGGER.info('after call2')
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
+        LOGGER.info('before error')
         self.assertEqual(tender['status'], 'active.tendering')
         self.assertIn('auctionPeriod', tender)
         self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 0)
@@ -325,6 +354,7 @@ class TenderTest(BaseTenderWebTest):
 
 
 class TenderTest2(BaseTenderWebTest):
+    scheduler = False
     initial_data = test_tender_data_quick
     initial_bids = test_bids[:1]
 
@@ -366,6 +396,7 @@ class TenderTest2(BaseTenderWebTest):
 
 
 class TenderTest3(BaseTenderWebTest):
+    scheduler = False
     initial_data = test_tender_data_quick
     initial_bids = test_bids
 
@@ -399,3 +430,22 @@ class TenderTest3(BaseTenderWebTest):
 
 class TenderTest4(TenderTest3):
     sandbox = True
+
+
+class TenderPlanning(BaseWebTest):
+
+    def test_auction_quick_planning(self):
+        now = datetime.now(TZ)
+        res = planning_auction(test_tender_data_test_quick, now, self.db, True)
+        auctionPeriodstartDate = parse_date(res['startDate'], TZ)
+        self.assertTrue(now < auctionPeriodstartDate < now + timedelta(hours=1))
+
+    def test_auction_planning_overlow(self):
+        now = datetime.now(TZ)
+        res = planning_auction(test_tender_data_test_quick, now, self.db)
+        startDate = res['startDate'][:10]
+        count = 0
+        while startDate == res['startDate'][:10]:
+            count += 1
+            res = planning_auction(test_tender_data_test_quick, now, self.db)
+        self.assertEqual(count, 100)

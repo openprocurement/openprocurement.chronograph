@@ -5,6 +5,8 @@ from openprocurement.chronograph.scheduler import (
     get_calendar,
     set_holiday,
     delete_holiday,
+    get_streams,
+    set_streams,
 )
 
 
@@ -62,3 +64,15 @@ def calendar_entry_view(request):
     elif request.method == 'DELETE':
         delete_holiday(request.registry.db, date)
         return False
+
+
+@view_config(route_name='streams', renderer='json')
+def streams_view(request):
+    if request.method == 'GET':
+        return get_streams(request.registry.db)
+    elif request.method == 'POST':
+        streams = request.params.get('streams', '')
+        if streams and streams.isdigit():
+            set_streams(request.registry.db, int(streams))
+            return True
+    return False

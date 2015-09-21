@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 from openprocurement.chronograph.scheduler import push
 from pyramid.config import Configurator
 from pytz import timezone
-from tzlocal import get_localzone
 from pyramid.events import ApplicationCreated, ContextFound, BeforeRender
 from pbkdf2 import PBKDF2
 
@@ -87,6 +86,7 @@ def main(global_config, **settings):
     config.add_route('resync', '/resync/{tender_id}')
     config.add_route('calendar', '/calendar')
     config.add_route('calendar_entry', '/calendar/{date}')
+    config.add_route('streams', '/streams')
     config.scan(ignore='openprocurement.chronograph.tests')
     config.add_subscriber(start_scheduler, ApplicationCreated)
     config.registry.api_token = os.environ.get('API_TOKEN', settings.get('api.token'))

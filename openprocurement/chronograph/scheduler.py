@@ -4,7 +4,6 @@ import requests
 from datetime import datetime, timedelta, time
 from json import dumps
 from pytz import timezone
-from tzlocal import get_localzone
 from iso8601 import parse_date
 from couchdb.http import ResourceConflict
 from time import sleep
@@ -14,6 +13,7 @@ from logging import getLogger
 LOG = getLogger(__name__)
 TZ = timezone(os.environ['TZ'] if 'TZ' in os.environ else 'Europe/Kiev')
 CALENDAR_ID = 'calendar'
+STREAMS_ID = 'streams'
 WORKING_DAY_START = time(11, 0)
 WORKING_DAY_END = time(16, 0)
 ROUNDING = timedelta(minutes=15)
@@ -46,15 +46,31 @@ def delete_holiday(db, day, calendar_id=CALENDAR_ID):
         db.save(calendar)
 
 
-def get_date(plan, date):
-    plan_date_end = plan.get(date.isoformat(), WORKING_DAY_START.isoformat())
+def get_streams(db, streams_id=STREAMS_ID):
+    return db.get(streams_id, {'_id': streams_id, 'streams': 10}).get('streams')
+
+
+def set_streams(db, streams, streams_id=STREAMS_ID):
+    streams_doc = db.get(streams_id, {'_id': streams_id, 'streams': 10})
+    streams_doc['streams'] = streams
+    db.save(streams_doc)
+
+
+def get_date(db, mode, date):
+    plan_id = 'plan{}_{}'.format(mode, date.isoformat())
+    plan = db.get(plan_id, {'_id': plan_id})
+    plan_date_end = plan.get('time', WORKING_DAY_START.isoformat())
     plan_date = parse_date(date.isoformat() + 'T' + plan_date_end, None)
     plan_date = plan_date.astimezone(TZ) if plan_date.tzinfo else TZ.localize(plan_date)
-    return plan_date.time()
+    return plan_date.time(), plan.get('streams', 1)
 
 
-def set_date(plan, date, time):
-    plan[date.isoformat()] = time.isoformat()
+def set_date(db, mode, date, time, stream):
+    plan_id = 'plan{}_{}'.format(mode, date.isoformat())
+    plan = db.get(plan_id, {'_id': plan_id})
+    plan['time'] = time.isoformat()
+    plan['streams'] = stream
+    db.save(plan)
 
 
 def calc_auction_end_time(bids, start):
@@ -66,17 +82,13 @@ def calc_auction_end_time(bids, start):
 
 
 def planning_auction(tender, start, db, quick=False):
-    calendar = get_calendar(db)
-    cpv_group = tender.get('items', [{}])[0].get('classification', {}).get('id')
-    plan_id = 'plan_{}'.format(cpv_group[:3]) if cpv_group else 'plan'
     mode = tender.get('mode', '')
-    if mode:
-        plan_id = '{}_{}'.format(plan_id, mode)
-    plan = db.get(plan_id, {'_id': plan_id})
+    calendar = get_calendar(db)
+    streams = get_streams(db)
     if quick:
         quick_start = calc_auction_end_time(0, start)
         return {'startDate': quick_start.isoformat()}
-    elif start.time() < WORKING_DAY_START:
+    if start.time() < WORKING_DAY_START:
         nextDate = start.date()
     else:
         nextDate = start.date() + timedelta(days=1)
@@ -84,22 +96,26 @@ def planning_auction(tender, start, db, quick=False):
         if calendar.get(nextDate.isoformat()) or nextDate.weekday() in [5, 6]:  # skip Saturday and Sunday
             nextDate += timedelta(days=1)
             continue
-        dayStart = get_date(plan, nextDate)
-        if dayStart >= WORKING_DAY_END:
+        dayStart, stream = get_date(db, mode, nextDate)
+        if dayStart >= WORKING_DAY_END and stream >= streams:
             nextDate += timedelta(days=1)
             continue
+        if dayStart >= WORKING_DAY_END and stream < streams:
+            stream += 1
+            dayStart = WORKING_DAY_START
         start = TZ.localize(datetime.combine(nextDate, dayStart))
-        end = calc_auction_end_time(3, start)  # len(tender.get('bids', [])
+        # end = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), start)
+        end = start + timedelta(minutes=30)
         if dayStart == WORKING_DAY_START and end > TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)):
             break
         elif end <= TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)):
             break
         nextDate += timedelta(days=1)
-    for n in range((end.date() - start.date()).days):
-        date = start.date() + timedelta(n)
-        set_date(plan, date.date(), WORKING_DAY_END)
-    set_date(plan, end.date(), end.time())
-    db.save(plan)
+    #for n in range((end.date() - start.date()).days):
+        #date = start.date() + timedelta(n)
+        #_, dayStream = get_date(db, mode, date.date())
+        #set_date(db, mode, date.date(), WORKING_DAY_END, dayStream+1)
+    set_date(db, mode, end.date(), end.time(), stream)
     return {'startDate': start.isoformat()}
 
 

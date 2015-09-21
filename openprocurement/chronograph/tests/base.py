@@ -77,6 +77,7 @@ class BaseWebTest(unittest.TestCase):
 
     It setups the database before each test and delete it after.
     """
+    scheduler = True
 
     def setUp(self):
         self.api = api = webtest.TestApp("config:tests.ini", relative_to=os.path.dirname(__file__))
@@ -123,6 +124,8 @@ class BaseWebTest(unittest.TestCase):
         self.app = app = webtest.TestApp("config:chronograph.ini", relative_to=os.path.dirname(__file__))
         self.couchdb_server = self.app.app.registry.couchdb_server
         self.db = self.app.app.registry.db
+        if not self.scheduler:
+            self.app.app.registry.scheduler.shutdown()
 
     def tearDown(self):
         requests.api.request = self._request
@@ -159,5 +162,5 @@ class BaseTenderWebTest(BaseWebTest):
     def tearDown(self):
         if self.sandbox:
             os.environ.pop('SANDBOX_MODE')
-        del self.api_db[self.tender_id]
+        #del self.api_db[self.tender_id]
         super(BaseTenderWebTest, self).tearDown()
