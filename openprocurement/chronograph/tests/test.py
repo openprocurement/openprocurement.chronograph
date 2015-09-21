@@ -449,3 +449,18 @@ class TenderPlanning(BaseWebTest):
             count += 1
             res = planning_auction(test_tender_data_test_quick, now, self.db)
         self.assertEqual(count, 100)
+
+    def test_auction_planning_buffer(self):
+        some_date = datetime(2015, 9, 21, 6, 30)
+        date = some_date.date().isoformat()
+        ndate = (some_date + timedelta(days=1)).date().isoformat()
+        res = planning_auction(test_tender_data_test_quick, some_date, self.db)
+        self.assertEqual(res['startDate'][:10], date)
+        some_date = some_date.replace(hour=10)
+        res = planning_auction(test_tender_data_test_quick, some_date, self.db)
+        self.assertNotEqual(res['startDate'][:10], date)
+        self.assertEqual(res['startDate'][:10], ndate)
+        some_date = some_date.replace(hour=16)
+        res = planning_auction(test_tender_data_test_quick, some_date, self.db)
+        self.assertNotEqual(res['startDate'][:10], date)
+        self.assertEqual(res['startDate'][:10], ndate)

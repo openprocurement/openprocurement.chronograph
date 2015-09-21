@@ -51,7 +51,7 @@ def get_streams(db, streams_id=STREAMS_ID):
 
 
 def set_streams(db, streams, streams_id=STREAMS_ID):
-    streams_doc = db.get(streams_id, {'_id': streams_id, 'streams': 10})
+    streams_doc = db.get(streams_id, {'_id': streams_id})
     streams_doc['streams'] = streams
     db.save(streams_doc)
 
@@ -88,6 +88,7 @@ def planning_auction(tender, start, db, quick=False):
     if quick:
         quick_start = calc_auction_end_time(0, start)
         return {'startDate': quick_start.isoformat()}
+    start += timedelta(hours=1)
     if start.time() < WORKING_DAY_START:
         nextDate = start.date()
     else:
