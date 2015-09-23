@@ -22,7 +22,7 @@ def home_view(request):
 def resync_all(request):
     url = request.params.get('url', '')
     if not url:
-        url = request.registry.api_url + 'tenders?mode=_all_'
+        url = request.registry.api_url + 'tenders?mode=_all_&feed=changes'
     return resync_tenders(
         request.registry.scheduler,
         url,

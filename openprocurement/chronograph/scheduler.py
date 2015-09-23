@@ -297,7 +297,10 @@ def resync_tenders(scheduler, next_url, api_token, callback_url, request_id):
     while True:
         try:
             r = get_request(next_url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
-            if r.status_code != requests.codes.ok:
+            if r.status_code == requests.codes.not_found:
+                next_url = ''
+                break
+            elif r.status_code != requests.codes.ok:
                 break
             json = r.json()
             next_url = json['next_page']['uri']
