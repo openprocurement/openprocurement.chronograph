@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
-import requests
+import requests, gevent, grequests
 from datetime import datetime, timedelta, time
 from json import dumps
 from pytz import timezone
@@ -22,6 +22,8 @@ MIN_PAUSE = timedelta(minutes=3)
 BIDDER_TIME = timedelta(minutes=6)
 SERVICE_TIME = timedelta(minutes=9)
 STAND_STILL_TIME = timedelta(days=1)
+SESSION = requests.Session()
+POOL = gevent.pool.Pool(1)
 
 
 def get_now():
@@ -67,14 +69,16 @@ def get_date(db, mode, date):
     plan_date_end = plan.get('time', WORKING_DAY_START.isoformat())
     plan_date = parse_date(date.isoformat() + 'T' + plan_date_end, None)
     plan_date = plan_date.astimezone(TZ) if plan_date.tzinfo else TZ.localize(plan_date)
-    return plan_date.time(), plan.get('streams', 1)
+    return plan_date.time(), plan.get('streams', 1), plan
 
 
-def set_date(db, mode, date, time, stream):
-    plan_id = 'plan{}_{}'.format(mode, date.isoformat())
-    plan = db.get(plan_id, {'_id': plan_id})
-    plan['time'] = time.isoformat()
-    plan['streams'] = stream
+def set_date(db, plan, end_time, cur_stream, tender_id, start_time):
+    plan['time'] = end_time.isoformat()
+    plan['streams'] = cur_stream
+    stream_id = 'stream_{}'.format(cur_stream)
+    stream = plan.get(stream_id, {})
+    stream[start_time.isoformat()] = tender_id
+    plan[stream_id] = stream
     db.save(plan)
 
 
@@ -87,6 +91,7 @@ def calc_auction_end_time(bids, start):
 
 
 def planning_auction(tender, start, db, quick=False):
+    tid = tender.get('id', '')
     mode = tender.get('mode', '')
     calendar = get_calendar(db)
     streams = get_streams(db)
@@ -102,7 +107,7 @@ def planning_auction(tender, start, db, quick=False):
         if calendar.get(nextDate.isoformat()) or nextDate.weekday() in [5, 6]:  # skip Saturday and Sunday
             nextDate += timedelta(days=1)
             continue
-        dayStart, stream = get_date(db, mode, nextDate)
+        dayStart, stream, plan = get_date(db, mode, nextDate)
         if dayStart >= WORKING_DAY_END and stream >= streams:
             nextDate += timedelta(days=1)
             continue
@@ -121,7 +126,7 @@ def planning_auction(tender, start, db, quick=False):
         #date = start.date() + timedelta(n)
         #_, dayStream = get_date(db, mode, date.date())
         #set_date(db, mode, date.date(), WORKING_DAY_END, dayStream+1)
-    set_date(db, mode, end.date(), end.time(), stream)
+    set_date(db, plan, end.time(), stream, tid, dayStart)
     return start
 
 
@@ -234,7 +239,9 @@ def get_request(url, auth, headers=None):
     tx = ty = 1
     while True:
         try:
-            r = requests.get(url, auth=auth, headers=headers)
+            request = grequests.get(url, auth=auth, headers=headers, session=SESSION)
+            grequests.send(request, POOL).join()
+            r = request.response
         except:
             pass
         else:
@@ -304,6 +311,7 @@ def resync_tenders(scheduler, next_url, api_token, callback_url, request_id):
                                       id=tender['id'], name="Resync {}".format(tender['id']), misfire_grace_time=60 * 60,
                                       args=[callback_url + 'resync/' + tender['id'], None],
                                       replace_existing=True)
+            sleep(0.1)
         except:
             break
     run_date = get_now() + timedelta(minutes=1)

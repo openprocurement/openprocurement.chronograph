@@ -7,18 +7,20 @@ README = open(os.path.join(here, 'README.rst')).read()
 CHANGES = open(os.path.join(here, 'CHANGES.rst')).read()
 
 requires = [
-    'setuptools',
-    'pyramid',
-    'chaussette',
-    'gevent',
-    'couchdb',
-    'apscheduler',
-    'requests',
-    'iso8601',
     'SQLAlchemy',
-    'pysqlite',
-    'pyramid_exclog',
+    'apscheduler',
+    'chaussette',
+    'couchdb',
+    'grequests',
+    'iso8601',
+    'ndg-httpsclient',
     'pbkdf2',
+    'pyasn1',
+    'pyopenssl',
+    'pyramid',
+    'pyramid_exclog',
+    'pysqlite',
+    'setuptools',
 ]
 
 test_requires = requires + [

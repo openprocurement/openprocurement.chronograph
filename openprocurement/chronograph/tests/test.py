@@ -98,6 +98,9 @@ class SimpleTest(BaseWebTest):
         response = self.app.post('/streams', {'streams': -20})
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, False)
+        response = self.app.post('/streams', {'streams': 10})
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, True)
 
 
 class TendersTest(BaseTenderWebTest):

@@ -6,6 +6,7 @@ import requests.api
 from requests.models import Response
 from requests.structures import CaseInsensitiveDict
 from requests.utils import get_encoding_from_headers
+from openprocurement.chronograph.scheduler import SESSION
 try:
     from openprocurement.api.tests.base import test_tender_data
 except ImportError:
@@ -92,7 +93,7 @@ class BaseWebTest(unittest.TestCase):
             auth = None
             if 'auth' in kwargs:
                 auth = kwargs.pop('auth')
-            for i in ['auth', 'allow_redirects']:
+            for i in ['auth', 'allow_redirects', 'stream']:
                 if i in kwargs:
                     kwargs.pop(i)
             if app.app.registry.api_url in url:
@@ -120,6 +121,8 @@ class BaseWebTest(unittest.TestCase):
 
         self._request = requests.api.request
         requests.api.request = request
+        self._srequest = SESSION.request
+        SESSION.request = request
 
         self.app = app = webtest.TestApp("config:chronograph.ini", relative_to=os.path.dirname(__file__))
         self.couchdb_server = self.app.app.registry.couchdb_server
@@ -129,6 +132,7 @@ class BaseWebTest(unittest.TestCase):
 
     def tearDown(self):
         requests.api.request = self._request
+        SESSION.request = self._srequest
         del self.couchdb_server[self.api_db.name]
         del self.couchdb_server[self.db.name]
 
