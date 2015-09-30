@@ -26,7 +26,6 @@ requires = [
 test_requires = requires + [
     'openprocurement.api',
     'webtest',
-    'python-coveralls',
 ]
 
 setup(name='openprocurement.chronograph',
