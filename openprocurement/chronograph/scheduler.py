@@ -137,8 +137,6 @@ def check_tender(tender, db):
     tenderPeriodStart = tenderPeriodStart and parse_date(tenderPeriodStart, TZ).astimezone(TZ)
     tenderPeriodEnd = tender.get('tenderPeriod', {}).get('endDate')
     tenderPeriodEnd = tenderPeriodEnd and parse_date(tenderPeriodEnd, TZ).astimezone(TZ)
-    awardPeriodEnd = tender.get('awardPeriod', {}).get('endDate')
-    awardPeriodEnd = awardPeriodEnd and parse_date(awardPeriodEnd, TZ).astimezone(TZ)
     standStillEnds = [
         parse_date(a['complaintPeriod']['endDate'], TZ).astimezone(TZ)
         for a in tender.get('awards', [])
@@ -230,7 +228,7 @@ def check_tender(tender, db):
         return None, tenderPeriodStart
     elif tenderPeriodEnd and tenderPeriodEnd > now:
         return None, tenderPeriodEnd
-    elif awardPeriodEnd and standStillEnd > now:
+    elif standStillEnd and standStillEnd > now:
         return None, standStillEnd
     return None, None
 
