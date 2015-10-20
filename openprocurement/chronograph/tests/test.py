@@ -232,7 +232,7 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(response.status, '200 OK')
         self.assertIn('jobs', response.json)
         self.assertIn(self.tender_id, response.json['jobs'])
-        self.assertEqual(response.json['jobs'][self.tender_id], tender['tenderPeriod']['endDate'])
+        self.assertEqual(parse_date(response.json['jobs'][self.tender_id]).utctimetuple(), parse_date(tender['tenderPeriod']['endDate']).utctimetuple())
 
     def test_set_auctionPeriod_skip_weekend(self):
         now = datetime.now(TZ)
