@@ -90,7 +90,7 @@ def calc_auction_end_time(bids, start):
     return (end + timedelta(0, rounding - seconds, -end.microsecond)).astimezone(TZ)
 
 
-def planning_auction(tender, start, db, quick=False):
+def planning_auction(tender, start, db, quick=False, lot_id=None):
     tid = tender.get('id', '')
     mode = tender.get('mode', '')
     calendar = get_calendar(db)
@@ -126,7 +126,7 @@ def planning_auction(tender, start, db, quick=False):
         #date = start.date() + timedelta(n)
         #_, dayStream = get_date(db, mode, date.date())
         #set_date(db, mode, date.date(), WORKING_DAY_END, dayStream+1)
-    set_date(db, plan, end.time(), stream, tid, dayStart)
+    set_date(db, plan, end.time(), stream, "_".join([tid, lot_id]) if lot_id else tid, dayStart)
     return start
 
 
@@ -150,7 +150,7 @@ def check_tender(tender, db):
     elif tender['status'] == 'active.enquiries' and tenderPeriodStart and tenderPeriodStart <= now:
         LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
         return {'status': 'active.tendering'}, now
-    elif tender['status'] == 'active.tendering' and not tender.get('auctionPeriod') and tenderPeriodEnd and tenderPeriodEnd > now:
+    elif not tender.get('lots') and tender['status'] == 'active.tendering' and not tender.get('auctionPeriod') and tenderPeriodEnd and tenderPeriodEnd > now:
         planned = False
         quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
         while not planned:
@@ -162,17 +162,35 @@ def check_tender(tender, db):
         auctionPeriod = randomize(auctionPeriod).isoformat()
         LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod))
         return {'auctionPeriod': {'startDate': auctionPeriod}}, now
+    elif tender.get('lots') and tender['status'] == 'active.tendering' and not tender.get('auctionPeriod') and tenderPeriodEnd and tenderPeriodEnd > now:
+        quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
+        lots = []
+        for lot in tender.get('lots', []):
+            if lot['status'] != 'active':
+                lots.append({})
+                continue
+            lot_id = lot['id']
+            planned = False
+            while not planned:
+                try:
+                    auctionPeriod = planning_auction(tender, tenderPeriodEnd, db, quick, lot_id)
+                    planned = True
+                except ResourceConflict:
+                    planned = False
+            auctionPeriod = randomize(auctionPeriod).isoformat()
+            lots.append({'auctionPeriod': {'startDate': auctionPeriod}})
+            LOG.info('Planned auction for lot {} of tender {} to {}'.format(lot_id, tender['id'], auctionPeriod))
+        return {'lots': lots}, now
     elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd <= now:
-        numberOfBids = tender.get('numberOfBids', len(tender.get('bids', [])))
-        if numberOfBids > 1:
-            LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
-            return {'status': 'active.auction'}, now
-        elif numberOfBids == 1:
-            LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.qualification'))
-            return {'status': 'active.qualification', 'auctionPeriod': {'startDate': None}, 'awardPeriod': {'startDate': now.isoformat()}}, now
-        else:
-            LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
-            return {'status': 'unsuccessful', 'auctionPeriod': {'startDate': None}}, None
+        LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
+        return {
+            'status': 'active.auction',
+            'auctionPeriod': {'startDate': None} if tender.get('numberOfBids', 0) < 2 else {},
+            'lots': [
+                {'auctionPeriod': {'startDate': None}} if i.get('numberOfBids', 0) < 2 else {}
+                for i in tender.get('lots', [])
+            ]
+        }, now
     elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
         planned = False
         quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
@@ -284,6 +302,8 @@ def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, reques
             if r.status_code != requests.codes.ok:
                 LOG.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text))
                 next_check = get_now() + timedelta(minutes=1)
+            elif r.json() and not r.json()['data']['status'].startswith('active'):
+                next_check = None
     if next_check:
         scheduler.add_job(push, 'date', run_date=next_check, timezone=TZ,
                           id=tender_id, name="Resync {}".format(tender_id), misfire_grace_time=60 * 60,
