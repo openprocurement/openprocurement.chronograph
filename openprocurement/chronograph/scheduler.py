@@ -31,7 +31,7 @@ def get_now():
 
 
 def randomize(dt):
-    return dt + timedelta(seconds=randint(0,900))
+    return dt + timedelta(seconds=randint(0, 900))
 
 
 def get_calendar(db, calendar_id=CALENDAR_ID):
@@ -181,17 +181,22 @@ def check_tender(tender, db):
             lots.append({'auctionPeriod': {'startDate': auctionPeriod}})
             LOG.info('Planned auction for lot {} of tender {} to {}'.format(lot_id, tender['id'], auctionPeriod))
         return {'lots': lots}, now
-    elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd <= now:
+    elif not tender.get('lots') and tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd <= now:
         LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
         return {
             'status': 'active.auction',
-            'auctionPeriod': {'startDate': None} if tender.get('numberOfBids', 0) < 2 else {},
+            'auctionPeriod': {'startDate': None} if tender.get('numberOfBids', 0) < 2 else {}
+        }, now
+    elif tender.get('lots') and tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd <= now:
+        LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
+        return {
+            'status': 'active.auction',
             'lots': [
                 {'auctionPeriod': {'startDate': None}} if i.get('numberOfBids', 0) < 2 else {}
                 for i in tender.get('lots', [])
             ]
         }, now
-    elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
+    elif not tender.get('lots') and tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
         planned = False
         quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
         while not planned:
@@ -203,7 +208,7 @@ def check_tender(tender, db):
         auctionPeriod = randomize(auctionPeriod).isoformat()
         LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod))
         return {'auctionPeriod': {'startDate': auctionPeriod}}, now
-    elif tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
+    elif not tender.get('lots') and tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
         tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
         tenderAuctionEnd = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), tenderAuctionStart)
         if now > tenderAuctionEnd + MIN_PAUSE:
@@ -220,6 +225,53 @@ def check_tender(tender, db):
             return {'auctionPeriod': {'startDate': auctionPeriod}}, now
         else:
             return None, tenderAuctionEnd + MIN_PAUSE
+    elif tender.get('lots') and tender['status'] == 'active.auction' and any([not lot.get('auctionPeriod') for lot in tender['lots'] if lot['status'] == 'active']):
+        quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
+        lots = []
+        for lot in tender.get('lots', []):
+            if lot['status'] != 'active' or lot.get('auctionPeriod'):
+                lots.append({})
+                continue
+            lot_id = lot['id']
+            planned = False
+            while not planned:
+                try:
+                    auctionPeriod = planning_auction(tender, tenderPeriodEnd, db, quick, lot_id)
+                    planned = True
+                except ResourceConflict:
+                    planned = False
+            auctionPeriod = randomize(auctionPeriod).isoformat()
+            lots.append({'auctionPeriod': {'startDate': auctionPeriod}})
+            LOG.info('Planned auction for lot {} of tender {} to {}'.format(lot_id, tender['id'], auctionPeriod))
+        return {'lots': lots}, now
+    elif tender.get('lots') and tender['status'] == 'active.auction':
+        quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
+        lots = []
+        lots_ends = []
+        for lot in tender.get('lots', []):
+            if lot['status'] != 'active':
+                lots.append({})
+                continue
+            lot_id = lot['id']
+            lotAuctionStart = parse_date(lot.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
+            lotAuctionEnd = calc_auction_end_time(lot['numberOfBids'], lotAuctionStart)
+            if now > lotAuctionEnd + MIN_PAUSE:
+                planned = False
+                while not planned:
+                    try:
+                        auctionPeriod = planning_auction(tender, now, db, quick, lot_id)
+                        planned = True
+                    except ResourceConflict:
+                        planned = False
+                auctionPeriod = randomize(auctionPeriod).isoformat()
+                lots.append({'auctionPeriod': {'startDate': auctionPeriod}})
+                LOG.info('Replanned auction for lot {} of tender {} to {}'.format(lot_id, tender['id'], auctionPeriod))
+            else:
+                lots_ends.append(lotAuctionEnd + MIN_PAUSE)
+        if any(lots):
+            return {'lots': lots}, now
+        else:
+            return None, min(lots_ends)
     elif tender['status'] == 'active.awarded' and standStillEnd and standStillEnd <= now:
         pending_complaints = [
             i
