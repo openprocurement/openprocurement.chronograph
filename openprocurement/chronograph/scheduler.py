@@ -163,16 +163,15 @@ def check_tender(tender, db):
         LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod))
         return {'auctionPeriod': {'startDate': auctionPeriod}}, now
     elif tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd <= now:
-        numberOfBids = tender.get('numberOfBids', len(tender.get('bids', [])))
-        if numberOfBids > 1:
-            LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
-            return {'status': 'active.auction'}, now
-        elif numberOfBids == 1:
-            LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.qualification'))
-            return {'status': 'active.qualification', 'auctionPeriod': {'startDate': None}, 'awardPeriod': {'startDate': now.isoformat()}}, now
-        else:
-            LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
-            return {'status': 'unsuccessful', 'auctionPeriod': {'startDate': None}}, None
+        LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
+        return {
+            'status': 'active.auction',
+            'auctionPeriod': {'startDate': None} if tender.get('numberOfBids', 0) < 2 else {},
+            'lots': [
+                {'auctionPeriod': {'startDate': None}} if i.get('numberOfBids', 0) < 2 else {}
+                for i in tender.get('lots', [])
+            ]
+        }, now
     elif tender['status'] == 'active.auction' and not tender.get('auctionPeriod'):
         planned = False
         quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
@@ -284,6 +283,8 @@ def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, reques
             if r.status_code != requests.codes.ok:
                 LOG.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text))
                 next_check = get_now() + timedelta(minutes=1)
+            elif not r.json()['data']['status'].startswith('active'):
+                next_check = None
     if next_check:
         scheduler.add_job(push, 'date', run_date=next_check, timezone=TZ,
                           id=tender_id, name="Resync {}".format(tender_id), misfire_grace_time=60 * 60,
