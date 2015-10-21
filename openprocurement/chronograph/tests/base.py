@@ -140,6 +140,7 @@ class BaseWebTest(unittest.TestCase):
 class BaseTenderWebTest(BaseWebTest):
     initial_data = test_tender_data
     initial_bids = None
+    initial_lots = None
     sandbox = False
 
     def setUp(self):
@@ -148,17 +149,43 @@ class BaseTenderWebTest(BaseWebTest):
             os.environ['SANDBOX_MODE'] = "True"
         # Create tender
         self.api.authorization = ('Basic', ('token', ''))
-        response = self.api.post_json(self.app.app.registry.api_url + 'tenders', {'data': self.initial_data})
+        response = self.api.post_json('{}tenders'.format(self.app.app.registry.api_url), {'data': self.initial_data})
         tender = response.json['data']
         self.tender_id = tender['id']
+        if self.initial_lots:
+            lots = []
+            for i in self.initial_lots:
+                response = self.api.post_json('{}tenders/{}/lots'.format(self.app.app.registry.api_url, self.tender_id), {'data': i})
+                self.assertEqual(response.status, '201 Created')
+                lots.append(response.json['data'])
+            self.initial_lots = lots
+            response = self.api.patch_json('{}tenders/{}'.format(self.app.app.registry.api_url, self.tender_id), {"data": {
+                "items": [
+                    {
+                        'relatedLot': lots[i % len(lots)]['id']
+                    }
+                    for i in xrange(len(tender['items']))
+                ]
+            }})
+            self.assertEqual(response.status, '200 OK')
         if self.initial_bids:
-            response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
+            response = self.api.patch_json('{}tenders/{}'.format(self.app.app.registry.api_url, self.tender_id), {
                 'data': {
                     'status': 'active.tendering'
                 }
             })
             bids = []
             for i in self.initial_bids:
+                if self.initial_lots:
+                    i = i.copy()
+                    value = i.pop('value')
+                    i['lotValues'] = [
+                        {
+                            'value': value,
+                            'relatedLot': lot['id'],
+                        }
+                        for lot in self.initial_lots
+                    ]
                 response = self.api.post_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id + '/bids', {'data': i})
                 bids.append(response.json['data'])
             self.initial_bids = bids

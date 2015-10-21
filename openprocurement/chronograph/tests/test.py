@@ -9,6 +9,44 @@ from openprocurement.chronograph import TZ
 from openprocurement.chronograph.scheduler import planning_auction
 from openprocurement.chronograph.tests.base import BaseWebTest, BaseTenderWebTest, test_tender_data
 
+try:
+    from openprocurement.api.tests.base import test_bids
+except ImportError:
+    test_bids = [
+        {
+            "tenderers": [
+                test_tender_data["procuringEntity"]
+            ],
+            "value": {
+                "amount": 469,
+                "currency": "UAH",
+                "valueAddedTaxIncluded": True
+            }
+        },
+        {
+            "tenderers": [
+                test_tender_data["procuringEntity"]
+            ],
+            "value": {
+                "amount": 479,
+                "currency": "UAH",
+                "valueAddedTaxIncluded": True
+            }
+        }
+    ]
+
+try:
+    from openprocurement.api.tests.base import test_lots
+except ImportError:
+    test_lots = [
+        {
+            'title': 'lot title',
+            'description': 'lot description',
+            'value': test_tender_data['value'],
+            'minimalStep': test_tender_data['minimalStep'],
+        }
+    ]
+
 
 LOGGER = getLogger(__name__)
 test_tender_data_quick = deepcopy(test_tender_data)
@@ -24,28 +62,6 @@ test_tender_data_quick.update({
 })
 test_tender_data_test_quick = deepcopy(test_tender_data_quick)
 test_tender_data_test_quick['mode'] = 'test'
-test_bids = [
-    {
-        "tenderers": [
-            test_tender_data["procuringEntity"]
-        ],
-        "value": {
-            "amount": 469,
-            "currency": "UAH",
-            "valueAddedTaxIncluded": True
-        }
-    },
-    {
-        "tenderers": [
-            test_tender_data["procuringEntity"]
-        ],
-        "value": {
-            "amount": 479,
-            "currency": "UAH",
-            "valueAddedTaxIncluded": True
-        }
-    }
-]
 
 
 class SimpleTest(BaseWebTest):
@@ -423,8 +439,12 @@ class TenderTest3(BaseTenderWebTest):
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
         tender = self.api_db.get(self.tender_id)
-        self.assertIn('auctionPeriod', tender)
-        tender['auctionPeriod']['startDate'] = (datetime.now(TZ) - timedelta(hours=1)).isoformat()
+        if self.initial_lots:
+            self.assertIn('auctionPeriod', tender['lots'][0])
+            tender['lots'][0]['auctionPeriod']['startDate'] = (datetime.now(TZ) - timedelta(hours=1)).isoformat()
+        else:
+            self.assertIn('auctionPeriod', tender)
+            tender['auctionPeriod']['startDate'] = (datetime.now(TZ) - timedelta(hours=1)).isoformat()
         self.api_db.save(tender)
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
@@ -433,6 +453,18 @@ class TenderTest3(BaseTenderWebTest):
 
 class TenderTest4(TenderTest3):
     sandbox = True
+
+
+class TenderLotTest2(TenderTest2):
+    initial_lots = test_lots
+
+
+class TenderLotTest3(TenderTest3):
+    initial_lots = test_lots
+
+
+class TenderLotTest4(TenderTest4):
+    initial_lots = test_lots
 
 
 class TenderPlanning(BaseWebTest):
