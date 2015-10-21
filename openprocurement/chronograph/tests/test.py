@@ -238,8 +238,12 @@ class TenderTest(BaseTenderWebTest):
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
-        self.assertIn('auctionPeriod', tender)
-        self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 1)
+        if self.initial_lots:
+            self.assertIn('auctionPeriod', tender['lots'][0])
+            self.assertEqual(parse_date(tender['lots'][0]['auctionPeriod']['startDate'], TZ).weekday(), 1)
+        else:
+            self.assertIn('auctionPeriod', tender)
+            self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 1)
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
@@ -248,7 +252,8 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(response.status, '200 OK')
         self.assertIn('jobs', response.json)
         self.assertIn(self.tender_id, response.json['jobs'])
-        self.assertEqual(parse_date(response.json['jobs'][self.tender_id]).utctimetuple(), parse_date(tender['tenderPeriod']['endDate']).utctimetuple())
+        if not self.initial_lots:
+            self.assertEqual(parse_date(response.json['jobs'][self.tender_id]).utctimetuple(), parse_date(tender['tenderPeriod']['endDate']).utctimetuple())
 
     def test_set_auctionPeriod_skip_weekend(self):
         now = datetime.now(TZ)
@@ -263,25 +268,24 @@ class TenderTest(BaseTenderWebTest):
                 }
             }
         })
-        LOGGER.info('before call1')
         response = self.app.get('/resync/' + self.tender_id)
-        LOGGER.info('after call1')
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
-        LOGGER.info('before call2')
         response = self.app.get('/resync/' + self.tender_id)
-        LOGGER.info('after call2')
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
-        LOGGER.info('before error')
         self.assertEqual(tender['status'], 'active.tendering')
-        self.assertIn('auctionPeriod', tender)
-        self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 0)
+        if self.initial_lots:
+            self.assertIn('auctionPeriod', tender['lots'][0])
+            self.assertEqual(parse_date(tender['lots'][0]['auctionPeriod']['startDate'], TZ).weekday(), 0)
+        else:
+            self.assertIn('auctionPeriod', tender)
+            self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 0)
 
     def test_set_auctionPeriod_skip_holidays(self):
         now = datetime.now(TZ)
@@ -313,8 +317,12 @@ class TenderTest(BaseTenderWebTest):
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
-        self.assertIn('auctionPeriod', tender)
-        auctionPeriodstart = parse_date(tender['auctionPeriod']['startDate'], TZ)
+        if self.initial_lots:
+            self.assertIn('auctionPeriod', tender['lots'][0])
+            auctionPeriodstart = parse_date(tender['lots'][0]['auctionPeriod']['startDate'], TZ)
+        else:
+            self.assertIn('auctionPeriod', tender)
+            auctionPeriodstart = parse_date(tender['auctionPeriod']['startDate'], TZ)
         self.assertNotIn(auctionPeriodstart.date().isoformat(), calendar)
         self.assertTrue(auctionPeriodstart.date() > date)
 
@@ -343,8 +351,12 @@ class TenderTest(BaseTenderWebTest):
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
-        self.assertIn('auctionPeriod', tender)
-        self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 0)
+        if self.initial_lots:
+            self.assertIn('auctionPeriod', tender['lots'][0])
+            self.assertEqual(parse_date(tender['lots'][0]['auctionPeriod']['startDate'], TZ).weekday(), 0)
+        else:
+            self.assertIn('auctionPeriod', tender)
+            self.assertEqual(parse_date(tender['auctionPeriod']['startDate'], TZ).weekday(), 0)
 
     def test_switch_to_unsuccessful(self):
         response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
@@ -370,6 +382,10 @@ class TenderTest(BaseTenderWebTest):
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'unsuccessful')
+
+
+class TenderLotTest(TenderTest):
+    initial_lots = test_lots
 
 
 class TenderTest2(BaseTenderWebTest):
@@ -414,6 +430,10 @@ class TenderTest2(BaseTenderWebTest):
         self.assertEqual(tender['status'], 'unsuccessful')
 
 
+class TenderLotTest2(TenderTest2):
+    initial_lots = test_lots
+
+
 class TenderTest3(BaseTenderWebTest):
     scheduler = False
     initial_data = test_tender_data_quick
@@ -451,16 +471,12 @@ class TenderTest3(BaseTenderWebTest):
         self.assertNotEqual(response.json, None)
 
 
-class TenderTest4(TenderTest3):
-    sandbox = True
-
-
-class TenderLotTest2(TenderTest2):
-    initial_lots = test_lots
-
-
 class TenderLotTest3(TenderTest3):
     initial_lots = test_lots
+
+
+class TenderTest4(TenderTest3):
+    sandbox = True
 
 
 class TenderLotTest4(TenderTest4):
