@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import unittest
 from datetime import datetime, timedelta
 from copy import deepcopy
 from iso8601 import parse_date
@@ -252,8 +253,7 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(response.status, '200 OK')
         self.assertIn('jobs', response.json)
         self.assertIn(self.tender_id, response.json['jobs'])
-        if not self.initial_lots:
-            self.assertEqual(parse_date(response.json['jobs'][self.tender_id]).utctimetuple(), parse_date(tender['tenderPeriod']['endDate']).utctimetuple())
+        self.assertEqual(parse_date(response.json['jobs'][self.tender_id]).utctimetuple(), parse_date(tender['tenderPeriod']['endDate']).utctimetuple())
 
     def test_set_auctionPeriod_skip_weekend(self):
         now = datetime.now(TZ)
@@ -461,14 +461,23 @@ class TenderTest3(BaseTenderWebTest):
         tender = self.api_db.get(self.tender_id)
         if self.initial_lots:
             self.assertIn('auctionPeriod', tender['lots'][0])
+            auctionPeriod = tender['lots'][0]['auctionPeriod']['startDate']
             tender['lots'][0]['auctionPeriod']['startDate'] = (datetime.now(TZ) - timedelta(hours=1)).isoformat()
         else:
             self.assertIn('auctionPeriod', tender)
+            auctionPeriod = tender['auctionPeriod']['startDate']
             tender['auctionPeriod']['startDate'] = (datetime.now(TZ) - timedelta(hours=1)).isoformat()
         self.api_db.save(tender)
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
+        tender = self.api_db.get(self.tender_id)
+        if self.initial_lots:
+            self.assertIn('auctionPeriod', tender['lots'][0])
+            self.assertGreater(tender['lots'][0]['auctionPeriod']['startDate'], auctionPeriod)
+        else:
+            self.assertIn('auctionPeriod', tender)
+            self.assertGreater(tender['auctionPeriod']['startDate'], auctionPeriod)
 
 
 class TenderLotTest3(TenderTest3):
@@ -514,3 +523,23 @@ class TenderPlanning(BaseWebTest):
         res = planning_auction(test_tender_data_test_quick, some_date, self.db)
         self.assertNotEqual(res.date(), date)
         self.assertEqual(res.date(), ndate)
+
+
+def suite():
+    suite = unittest.TestSuite()
+    suite.addTest(unittest.makeSuite(SimpleTest))
+    suite.addTest(unittest.makeSuite(TenderLotTest))
+    suite.addTest(unittest.makeSuite(TenderLotTest2))
+    suite.addTest(unittest.makeSuite(TenderLotTest3))
+    suite.addTest(unittest.makeSuite(TenderLotTest4))
+    suite.addTest(unittest.makeSuite(TenderPlanning))
+    suite.addTest(unittest.makeSuite(TenderTest))
+    suite.addTest(unittest.makeSuite(TenderTest2))
+    suite.addTest(unittest.makeSuite(TenderTest3))
+    suite.addTest(unittest.makeSuite(TenderTest4))
+    suite.addTest(unittest.makeSuite(TendersTest))
+    return suite
+
+
+if __name__ == '__main__':
+    unittest.main(defaultTest='suite')

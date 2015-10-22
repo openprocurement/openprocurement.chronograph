@@ -162,7 +162,7 @@ def check_tender(tender, db):
         auctionPeriod = randomize(auctionPeriod).isoformat()
         LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod))
         return {'auctionPeriod': {'startDate': auctionPeriod}}, now
-    elif tender.get('lots') and tender['status'] == 'active.tendering' and not tender.get('auctionPeriod') and tenderPeriodEnd and tenderPeriodEnd > now:
+    elif tender.get('lots') and tender['status'] == 'active.tendering' and any([not lot.get('auctionPeriod') for lot in tender['lots'] if lot['status'] == 'active']) and tenderPeriodEnd and tenderPeriodEnd > now:
         quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
         lots = []
         for lot in tender.get('lots', []):

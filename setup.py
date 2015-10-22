@@ -49,7 +49,7 @@ setup(name='openprocurement.chronograph',
       install_requires=requires,
       tests_require=test_requires,
       extras_require={'test': test_requires},
-      test_suite="openprocurement.chronograph",
+      test_suite="openprocurement.chronograph.tests.test.suite",
       entry_points="""\
       [paste.app_factory]
       main = openprocurement.chronograph:main
