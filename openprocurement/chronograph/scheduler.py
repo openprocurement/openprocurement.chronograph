@@ -137,12 +137,6 @@ def check_tender(tender, db):
     tenderPeriodStart = tenderPeriodStart and parse_date(tenderPeriodStart, TZ).astimezone(TZ)
     tenderPeriodEnd = tender.get('tenderPeriod', {}).get('endDate')
     tenderPeriodEnd = tenderPeriodEnd and parse_date(tenderPeriodEnd, TZ).astimezone(TZ)
-    standStillEnds = [
-        parse_date(a['complaintPeriod']['endDate'], TZ).astimezone(TZ)
-        for a in tender.get('awards', [])
-        if a.get('complaintPeriod', {}).get('endDate')
-    ]
-    standStillEnd = max(standStillEnds) if standStillEnds else None
     now = get_now()
     if tender['status'] == 'active.enquiries' and not tenderPeriodStart and enquiryPeriodEnd and enquiryPeriodEnd <= now:
         LOG.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
@@ -166,7 +160,7 @@ def check_tender(tender, db):
         quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
         lots = []
         for lot in tender.get('lots', []):
-            if lot['status'] != 'active':
+            if lot['status'] != 'active' or lot.get('auctionPeriod'):
                 lots.append({})
                 continue
             lot_id = lot['id']
@@ -249,7 +243,7 @@ def check_tender(tender, db):
         lots = []
         lots_ends = []
         for lot in tender.get('lots', []):
-            if lot['status'] != 'active':
+            if lot['status'] != 'active' or lot.get('auctionPeriod', {}).get('endDate'):
                 lots.append({})
                 continue
             lot_id = lot['id']
@@ -272,34 +266,77 @@ def check_tender(tender, db):
             return {'lots': lots}, now
         else:
             return None, min(lots_ends)
-    elif tender['status'] == 'active.awarded' and standStillEnd and standStillEnd <= now:
-        pending_complaints = [
-            i
-            for i in tender.get('complaints', [])
-            if i['status'] == 'pending'
-        ]
-        pending_awards_complaints = [
-            i
+    elif not tender.get('lots') and tender['status'] == 'active.awarded':
+        standStillEnds = [
+            parse_date(a['complaintPeriod']['endDate'], TZ).astimezone(TZ)
             for a in tender.get('awards', [])
-            for i in a.get('complaints', [])
-            if i['status'] == 'pending'
+            if a.get('complaintPeriod', {}).get('endDate')
         ]
-        awarded = [
-            i
-            for i in tender.get('awards', [])
-            if i['status'] == 'active'
-        ]
-        if not pending_complaints and not pending_awards_complaints and not awarded:
-            LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
-            return {'status': 'unsuccessful'}, None
+        if not standStillEnds:
+            return None, None
+        standStillEnd = max(standStillEnds)
+        if standStillEnd <= now:
+            pending_complaints = any([
+                i['status'] == 'pending'
+                for i in tender.get('complaints', [])
+            ])
+            pending_awards_complaints = any([
+                i['status'] == 'pending'
+                for a in tender.get('awards', [])
+                for i in a.get('complaints', [])
+            ])
+            awarded = any([
+                i['status'] == 'active'
+                for i in tender.get('awards', [])
+            ])
+            if not pending_complaints and not pending_awards_complaints and not awarded:
+                LOG.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
+                return {'id': tender['id']}, None
+        elif standStillEnd > now:
+            return None, standStillEnd
+    elif tender.get('lots') and tender['status'] in ['active.qualification', 'active.awarded']:
+        pending_complaints = any([
+            i['status'] == 'pending'
+            for i in tender.get('complaints', [])
+        ])
+        if pending_complaints:
+            return None, None
+        lots_ends = []
+        for lot in tender.get('lots', []):
+            if lot['status'] != 'active':
+                continue
+            lot_awards = [i for i in tender['awards'] if i.get('lotID') == lot['id']]
+            standStillEnds = [
+                parse_date(a['complaintPeriod']['endDate'], TZ).astimezone(TZ)
+                for a in lot_awards
+                if a.get('complaintPeriod', {}).get('endDate')
+            ]
+            if not standStillEnds:
+                continue
+            standStillEnd = max(standStillEnds)
+            if standStillEnd <= now:
+                pending_awards_complaints = any([
+                    i['status'] == 'pending'
+                    for a in lot_awards
+                    for i in a.get('complaints', [])
+                ])
+                awarded = any([
+                    i['status'] == 'active'
+                    for i in lot_awards
+                ])
+                if not pending_complaints and not pending_awards_complaints and not awarded:
+                    LOG.info('Switched lot {} of tender {} to {}'.format(lot['id'], tender['id'], 'unsuccessful'))
+                    return {'id': tender['id']}, None
+            elif standStillEnd > now:
+                lots_ends.append(standStillEnd)
+        if lots_ends:
+            return None, min(lots_ends)
     if enquiryPeriodEnd and enquiryPeriodEnd > now:
         return None, enquiryPeriodEnd
     elif tenderPeriodStart and tenderPeriodStart > now:
         return None, tenderPeriodStart
     elif tenderPeriodEnd and tenderPeriodEnd > now:
         return None, tenderPeriodEnd
-    elif standStillEnd and standStillEnd > now:
-        return None, standStillEnd
     return None, None
 
 
