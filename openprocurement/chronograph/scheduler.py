@@ -96,6 +96,7 @@ def planning_auction(tender, start, db, quick=False, lot_id=None):
     mode = tender.get('mode', '')
     calendar = get_calendar(db)
     streams = get_streams(db)
+    skipped_days = 0
     if quick:
         quick_start = calc_auction_end_time(0, start)
         return quick_start
@@ -111,6 +112,7 @@ def planning_auction(tender, start, db, quick=False, lot_id=None):
         dayStart, stream, plan = get_date(db, mode, nextDate)
         if dayStart >= WORKING_DAY_END and stream >= streams:
             nextDate += timedelta(days=1)
+            skipped_days += 1
             continue
         if dayStart >= WORKING_DAY_END and stream < streams:
             stream += 1
@@ -123,12 +125,20 @@ def planning_auction(tender, start, db, quick=False, lot_id=None):
         elif end <= TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)):
             break
         nextDate += timedelta(days=1)
+        skipped_days += 1
     #for n in range((end.date() - start.date()).days):
         #date = start.date() + timedelta(n)
         #_, dayStream = get_date(db, mode, date.date())
         #set_date(db, mode, date.date(), WORKING_DAY_END, dayStream+1)
     set_date(db, plan, end.time(), stream, "_".join([tid, lot_id]) if lot_id else tid, dayStart)
-    return start
+    return (start, stream, skipped_days)
+
+
+def skipped_days(days):
+    days_str = ''
+    if days:
+        days_str = ' Skipped {} full days.'.format(days)
+    return days_str
 
 
 def check_tender(request, tender, db):
@@ -150,11 +160,12 @@ def check_tender(request, tender, db):
         quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
         while not planned:
             try:
-                auctionPeriod = planning_auction(tender, tenderPeriodEnd, db, quick)
+                auctionPeriod, stream, skip_days = planning_auction(tender, tenderPeriodEnd, db, quick)
                 planned = True
             except ResourceConflict:
                 planned = False
         auctionPeriod = randomize(auctionPeriod).isoformat()
+        days = skipped_days(skip_days)
         LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod))
         return {'auctionPeriod': {'startDate': auctionPeriod}}, now
     elif tender.get('lots') and tender['status'] == 'active.tendering' and any([not lot.get('auctionPeriod') for lot in tender['lots'] if lot['status'] == 'active']) and tenderPeriodEnd and tenderPeriodEnd > now:
@@ -168,7 +179,7 @@ def check_tender(request, tender, db):
             planned = False
             while not planned:
                 try:
-                    auctionPeriod = planning_auction(tender, tenderPeriodEnd, db, quick, lot_id)
+                    auctionPeriod, stream, skip_days = planning_auction(tender, tenderPeriodEnd, db, quick, lot_id)
                     planned = True
                 except ResourceConflict:
                     planned = False
@@ -196,11 +207,12 @@ def check_tender(request, tender, db):
         quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
         while not planned:
             try:
-                auctionPeriod = planning_auction(tender, tenderPeriodEnd, db, quick)
+                auctionPeriod, stream, skip_days = planning_auction(tender, tenderPeriodEnd, db, quick)
                 planned = True
             except ResourceConflict:
                 planned = False
         auctionPeriod = randomize(auctionPeriod).isoformat()
+        days = skipped_days(skip_days)
         LOG.info('Planned auction for tender {} to {}'.format(tender['id'], auctionPeriod))
         return {'auctionPeriod': {'startDate': auctionPeriod}}, now
     elif not tender.get('lots') and tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
@@ -211,11 +223,12 @@ def check_tender(request, tender, db):
             quick = os.environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
             while not planned:
                 try:
-                    auctionPeriod = planning_auction(tender, now, db, quick)
+                    auctionPeriod, stream, skip_days = planning_auction(tender, now, db, quick)
                     planned = True
                 except ResourceConflict:
                     planned = False
             auctionPeriod = randomize(auctionPeriod).isoformat()
+            days = skipped_days(skip_days)
             LOG.info('Replanned auction for tender {} to {}'.format(tender['id'], auctionPeriod))
             return {'auctionPeriod': {'startDate': auctionPeriod}}, now
         else:
@@ -231,7 +244,7 @@ def check_tender(request, tender, db):
             planned = False
             while not planned:
                 try:
-                    auctionPeriod = planning_auction(tender, tenderPeriodEnd, db, quick, lot_id)
+                    auctionPeriod, stream, skip_days = planning_auction(tender, tenderPeriodEnd, db, quick, lot_id)
                     planned = True
                 except ResourceConflict:
                     planned = False
@@ -254,7 +267,7 @@ def check_tender(request, tender, db):
                 planned = False
                 while not planned:
                     try:
-                        auctionPeriod = planning_auction(tender, now, db, quick, lot_id)
+                        auctionPeriod, stream, skip_days = planning_auction(tender, now, db, quick, lot_id)
                         planned = True
                     except ResourceConflict:
                         planned = False

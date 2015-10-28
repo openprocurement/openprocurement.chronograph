@@ -501,26 +501,26 @@ class TenderPlanning(BaseWebTest):
 
     def test_auction_planning_overlow(self):
         now = datetime.now(TZ)
-        res = planning_auction(test_tender_data_test_quick, now, self.db)
+        res = planning_auction(test_tender_data_test_quick, now, self.db)[0]
         startDate = res.date()
         count = 0
         while startDate == res.date():
             count += 1
-            res = planning_auction(test_tender_data_test_quick, now, self.db)
+            res = planning_auction(test_tender_data_test_quick, now, self.db)[0]
         self.assertEqual(count, 100)
 
     def test_auction_planning_buffer(self):
         some_date = datetime(2015, 9, 21, 6, 30)
         date = some_date.date()
         ndate = (some_date + timedelta(days=1)).date()
-        res = planning_auction(test_tender_data_test_quick, some_date, self.db)
+        res = planning_auction(test_tender_data_test_quick, some_date, self.db)[0]
         self.assertEqual(res.date(), date)
         some_date = some_date.replace(hour=10)
-        res = planning_auction(test_tender_data_test_quick, some_date, self.db)
+        res = planning_auction(test_tender_data_test_quick, some_date, self.db)[0]
         self.assertNotEqual(res.date(), date)
         self.assertEqual(res.date(), ndate)
         some_date = some_date.replace(hour=16)
-        res = planning_auction(test_tender_data_test_quick, some_date, self.db)
+        res= planning_auction(test_tender_data_test_quick, some_date, self.db)[0]
         self.assertNotEqual(res.date(), date)
         self.assertEqual(res.date(), ndate)
 
