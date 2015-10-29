@@ -14,13 +14,8 @@ from pytz import timezone
 from pyramid.events import ApplicationCreated, ContextFound, BeforeRender
 from pbkdf2 import PBKDF2
 
-try:
-    from systemd.journal import JournalHandler
-except ImportError:
-    JournalHandler = False
+LOG = getLogger(__name__)
 
-INIT_LOGGER = getLogger("{}.init".format(__name__))
-LOGGER = getLogger(__name__)
 TZ = timezone(os.environ['TZ'] if 'TZ' in os.environ else 'Europe/Kiev')
 SECURITY = {u'admins': {u'names': [], u'roles': ['_admin']}, u'members': {u'names': [], u'roles': ['_admin']}}
 VALIDATE_DOC_ID = '_design/_auth'
@@ -103,7 +98,7 @@ def main(global_config, **settings):
         aserver = Server(settings.get('couchdb.admin_url'), session=Session(retry_delays=range(10)))
         users_db = aserver['_users']
         if SECURITY != users_db.security:
-            INIT_LOGGER.info("Updating users db security", extra={'MESSAGE_ID': 'update_users_security'})
+            LOG.info("Updating users db security", extra={'MESSAGE_ID': 'update_users_security'})
             users_db.security = SECURITY
         username, password = server.resource.credentials
         user_doc = users_db.get('org.couchdb.user:{}'.format(username), {'_id': 'org.couchdb.user:{}'.format(username)})
@@ -114,7 +109,7 @@ def main(global_config, **settings):
                 "type": "user",
                 "password": password
             })
-            INIT_LOGGER.info("Updating chronograph db main user", extra={'MESSAGE_ID': 'update_chronograph_main_user'})
+            LOG.info("Updating chronograph db main user", extra={'MESSAGE_ID': 'update_chronograph_main_user'})
             users_db.save(user_doc)
         security_users = [username, ]
         if db_name not in aserver:
@@ -122,12 +117,12 @@ def main(global_config, **settings):
         db = aserver[db_name]
         SECURITY[u'members'][u'names'] = security_users
         if SECURITY != db.security:
-            INIT_LOGGER.info("Updating chronograph db security", extra={'MESSAGE_ID': 'update_chronograph_security'})
+            LOG.info("Updating chronograph db security", extra={'MESSAGE_ID': 'update_chronograph_security'})
             db.security = SECURITY
         auth_doc = db.get(VALIDATE_DOC_ID, {'_id': VALIDATE_DOC_ID})
         if auth_doc.get('validate_doc_update') != VALIDATE_DOC_UPDATE % username:
             auth_doc['validate_doc_update'] = VALIDATE_DOC_UPDATE % username
-            INIT_LOGGER.info("Updating chronograph db validate doc", extra={'MESSAGE_ID': 'update_chronograph_validate_doc'})
+            LOG.info("Updating chronograph db validate doc", extra={'MESSAGE_ID': 'update_chronograph_validate_doc'})
             db.save(auth_doc)
     else:
         if db_name not in server:
