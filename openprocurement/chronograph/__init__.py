@@ -9,18 +9,14 @@ from couchdb.http import Unauthorized, extract_credentials
 from datetime import datetime, timedelta
 #from openprocurement.chronograph.jobstores import CouchDBJobStore
 from openprocurement.chronograph.scheduler import push
+from openprocurement.chronograph.utils import add_logging_context
 from pyramid.config import Configurator
 from pytz import timezone
 from pyramid.events import ApplicationCreated, ContextFound, BeforeRender
 from pbkdf2 import PBKDF2
 
-try:
-    from systemd.journal import JournalHandler
-except ImportError:
-    JournalHandler = False
+LOG = getLogger(__name__)
 
-INIT_LOGGER = getLogger("{}.init".format(__name__))
-LOGGER = getLogger(__name__)
 TZ = timezone(os.environ['TZ'] if 'TZ' in os.environ else 'Europe/Kiev')
 SECURITY = {u'admins': {u'names': [], u'roles': ['_admin']}, u'members': {u'names': [], u'roles': ['_admin']}}
 VALIDATE_DOC_ID = '_design/_auth'
@@ -39,35 +35,6 @@ VALIDATE_DOC_UPDATE = """function(newDoc, oldDoc, userCtx){
 }"""
 
 
-def set_journal_handler(event):
-    request = event.request
-    params = {
-        'TENDERS_API_URL': request.registry.api_url,
-        'TAGS': 'python,chronograph',
-        'CURRENT_URL': request.url,
-        'CURRENT_PATH': request.path_info,
-        'REMOTE_ADDR': request.remote_addr or '',
-        'USER_AGENT': request.user_agent or '',
-        'TENDER_ID': '',
-        'TIMESTAMP': datetime.now(TZ).isoformat(),
-        'REQUEST_ID': request.environ.get('REQUEST_ID', ''),
-        'CLIENT_REQUEST_ID': request.headers.get('X-Client-Request-ID', ''),
-    }
-    if request.params:
-        params['PARAMS'] = str(dict(request.params))
-    if request.matchdict:
-        for i, j in request.matchdict.items():
-            params[i.upper()] = j
-    for i in LOGGER.handlers:
-        LOGGER.removeHandler(i)
-    LOGGER.addHandler(JournalHandler(**params))
-
-
-def clear_journal_handler(event):
-    for i in LOGGER.handlers:
-        LOGGER.removeHandler(i)
-
-
 def start_scheduler(event):
     app = event.app
     app.registry.scheduler.start()
@@ -77,9 +44,7 @@ def main(global_config, **settings):
     """ This function returns a Pyramid WSGI application.
     """
     config = Configurator(settings=settings)
-    if JournalHandler:
-        config.add_subscriber(set_journal_handler, ContextFound)
-        config.add_subscriber(clear_journal_handler, BeforeRender)
+    config.add_subscriber(add_logging_context, ContextFound)
     config.include('pyramid_exclog')
     config.add_route('home', '/')
     config.add_route('resync_all', '/resync_all')
@@ -103,7 +68,7 @@ def main(global_config, **settings):
         aserver = Server(settings.get('couchdb.admin_url'), session=Session(retry_delays=range(10)))
         users_db = aserver['_users']
         if SECURITY != users_db.security:
-            INIT_LOGGER.info("Updating users db security", extra={'MESSAGE_ID': 'update_users_security'})
+            LOG.info("Updating users db security", extra={'MESSAGE_ID': 'update_users_security'})
             users_db.security = SECURITY
         username, password = server.resource.credentials
         user_doc = users_db.get('org.couchdb.user:{}'.format(username), {'_id': 'org.couchdb.user:{}'.format(username)})
@@ -114,7 +79,7 @@ def main(global_config, **settings):
                 "type": "user",
                 "password": password
             })
-            INIT_LOGGER.info("Updating chronograph db main user", extra={'MESSAGE_ID': 'update_chronograph_main_user'})
+            LOG.info("Updating chronograph db main user", extra={'MESSAGE_ID': 'update_chronograph_main_user'})
             users_db.save(user_doc)
         security_users = [username, ]
         if db_name not in aserver:
@@ -122,12 +87,12 @@ def main(global_config, **settings):
         db = aserver[db_name]
         SECURITY[u'members'][u'names'] = security_users
         if SECURITY != db.security:
-            INIT_LOGGER.info("Updating chronograph db security", extra={'MESSAGE_ID': 'update_chronograph_security'})
+            LOG.info("Updating chronograph db security", extra={'MESSAGE_ID': 'update_chronograph_security'})
             db.security = SECURITY
         auth_doc = db.get(VALIDATE_DOC_ID, {'_id': VALIDATE_DOC_ID})
         if auth_doc.get('validate_doc_update') != VALIDATE_DOC_UPDATE % username:
             auth_doc['validate_doc_update'] = VALIDATE_DOC_UPDATE % username
-            INIT_LOGGER.info("Updating chronograph db validate doc", extra={'MESSAGE_ID': 'update_chronograph_validate_doc'})
+            LOG.info("Updating chronograph db validate doc", extra={'MESSAGE_ID': 'update_chronograph_validate_doc'})
             db.save(auth_doc)
     else:
         if db_name not in server:
