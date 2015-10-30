@@ -496,7 +496,7 @@ class TenderPlanning(BaseWebTest):
 
     def test_auction_quick_planning(self):
         now = datetime.now(TZ)
-        auctionPeriodstartDate = planning_auction(test_tender_data_test_quick, now, self.db, True)
+        auctionPeriodstartDate = planning_auction(test_tender_data_test_quick, now, self.db, True)[0]
         self.assertTrue(now < auctionPeriodstartDate < now + timedelta(hours=1))
 
     def test_auction_planning_overlow(self):
