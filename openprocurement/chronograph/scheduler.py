@@ -152,10 +152,12 @@ def check_tender(request, tender, db):
     tenderPeriodEnd = tenderPeriodEnd and parse_date(tenderPeriodEnd, TZ).astimezone(TZ)
     now = get_now()
     if tender['status'] == 'active.enquiries' and not tenderPeriodStart and enquiryPeriodEnd and enquiryPeriodEnd <= now:
-        LOGGER.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
+        LOGGER.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'),
+                    extra=context_unpack(request, {'MESSAGE_ID': 'switched_tender_active.tendering'}))
         return {'status': 'active.tendering'}, now
     elif tender['status'] == 'active.enquiries' and tenderPeriodStart and tenderPeriodStart <= now:
-        LOGGER.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'))
+        LOGGER.info('Switched tender {} to {}'.format(tender['id'], 'active.tendering'),
+                    extra=context_unpack(request, {'MESSAGE_ID': 'switched_tender_active.tendering'}))
         return {'status': 'active.tendering'}, now
     elif not tender.get('lots') and tender['status'] == 'active.tendering' and not tender.get('auctionPeriod') and tenderPeriodEnd and tenderPeriodEnd > now:
         planned = False
@@ -195,13 +197,15 @@ def check_tender(request, tender, db):
                                              {'PLANNED_DATE': auctionPeriod, 'PLANNED_STREAM': stream, 'PLANNED_DAYS_SKIPPED': skip_days, 'LOT_ID': lot_id}))
         return {'lots': lots}, now
     elif not tender.get('lots') and tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd <= now:
-        LOGGER.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
+        LOGGER.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'),
+                    extra=context_unpack(request, {'MESSAGE_ID': 'switched_tender_active.auction'}))
         return {
             'status': 'active.auction',
             'auctionPeriod': {'startDate': None} if tender.get('numberOfBids', 0) < 2 else {}
         }, now
     elif tender.get('lots') and tender['status'] == 'active.tendering' and tenderPeriodEnd and tenderPeriodEnd <= now:
-        LOGGER.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'))
+        LOGGER.info('Switched tender {} to {}'.format(tender['id'], 'active.auction'),
+                    extra=context_unpack(request, {'MESSAGE_ID': 'switched_tender_active.auction'}))
         return {
             'status': 'active.auction',
             'lots': [
@@ -321,7 +325,8 @@ def check_tender(request, tender, db):
                 for i in tender.get('awards', [])
             ])
             if not pending_complaints and not pending_awards_complaints and not awarded:
-                LOGGER.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'))
+                LOGGER.info('Switched tender {} to {}'.format(tender['id'], 'unsuccessful'),
+                            extra=context_unpack(request, {'MESSAGE_ID': 'switched_tender_unsuccessful'}))
                 return {'id': tender['id']}, None
         elif standStillEnd > now:
             return None, standStillEnd
@@ -356,7 +361,8 @@ def check_tender(request, tender, db):
                     for i in lot_awards
                 ])
                 if not pending_complaints and not pending_awards_complaints and not awarded:
-                    LOGGER.info('Switched lot {} of tender {} to {}'.format(lot['id'], tender['id'], 'unsuccessful'))
+                    LOGGER.info('Switched lot {} of tender {} to {}'.format(lot['id'], tender['id'], 'unsuccessful'),
+                                extra=context_unpack(request, {'MESSAGE_ID': 'switched_lot_unsuccessful'}, {'LOT_ID': lot['id']}))
                     return {'id': tender['id']}, None
             elif standStillEnd > now:
                 lots_ends.append(standStillEnd)
@@ -411,7 +417,8 @@ def resync_tender(request):
     request_id = request.environ.get('REQUEST_ID', '')
     r = get_request(url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
     if r.status_code != requests.codes.ok:
-        LOGGER.error("Error {} on getting tender '{}': {}".format(r.status_code, url, r.text))
+        LOGGER.error("Error {} on getting tender '{}': {}".format(r.status_code, url, r.text),
+                     extra=context_unpack(request, {'MESSAGE_ID': 'error_get_tender'}, {'ERROR_STATUS': r.status_code}))
         if r.status_code == requests.codes.not_found:
             return
         changes = None
@@ -427,7 +434,8 @@ def resync_tender(request):
                                headers={'Content-Type': 'application/json', 'X-Client-Request-ID': request_id},
                                auth=(api_token, ''))
             if r.status_code != requests.codes.ok:
-                LOGGER.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text))
+                LOGGER.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text),
+                             extra=context_unpack(request, {'MESSAGE_ID': 'error_patch_tender'}, {'ERROR_STATUS': r.status_code}))
                 next_check = get_now() + timedelta(minutes=1)
             elif r.json() and not r.json()['data']['status'].startswith('active'):
                 next_check = None
