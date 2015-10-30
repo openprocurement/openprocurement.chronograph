@@ -520,7 +520,7 @@ class TenderPlanning(BaseWebTest):
         self.assertNotEqual(res.date(), date)
         self.assertEqual(res.date(), ndate)
         some_date = some_date.replace(hour=16)
-        res= planning_auction(test_tender_data_test_quick, some_date, self.db)[0]
+        res = planning_auction(test_tender_data_test_quick, some_date, self.db)[0]
         self.assertNotEqual(res.date(), date)
         self.assertEqual(res.date(), ndate)
 
