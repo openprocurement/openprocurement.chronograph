@@ -9,6 +9,7 @@ from couchdb.http import Unauthorized, extract_credentials
 from datetime import datetime, timedelta
 #from openprocurement.chronograph.jobstores import CouchDBJobStore
 from openprocurement.chronograph.scheduler import push
+from openprocurement.chronograph.utils import add_logging_context
 from pyramid.config import Configurator
 from pytz import timezone
 from pyramid.events import ApplicationCreated, ContextFound, BeforeRender
@@ -34,35 +35,6 @@ VALIDATE_DOC_UPDATE = """function(newDoc, oldDoc, userCtx){
 }"""
 
 
-def set_journal_handler(event):
-    request = event.request
-    params = {
-        'TENDERS_API_URL': request.registry.api_url,
-        'TAGS': 'python,chronograph',
-        'CURRENT_URL': request.url,
-        'CURRENT_PATH': request.path_info,
-        'REMOTE_ADDR': request.remote_addr or '',
-        'USER_AGENT': request.user_agent or '',
-        'TENDER_ID': '',
-        'TIMESTAMP': datetime.now(TZ).isoformat(),
-        'REQUEST_ID': request.environ.get('REQUEST_ID', ''),
-        'CLIENT_REQUEST_ID': request.headers.get('X-Client-Request-ID', ''),
-    }
-    if request.params:
-        params['PARAMS'] = str(dict(request.params))
-    if request.matchdict:
-        for i, j in request.matchdict.items():
-            params[i.upper()] = j
-    for i in LOGGER.handlers:
-        LOGGER.removeHandler(i)
-    LOGGER.addHandler(JournalHandler(**params))
-
-
-def clear_journal_handler(event):
-    for i in LOGGER.handlers:
-        LOGGER.removeHandler(i)
-
-
 def start_scheduler(event):
     app = event.app
     app.registry.scheduler.start()
@@ -72,9 +44,7 @@ def main(global_config, **settings):
     """ This function returns a Pyramid WSGI application.
     """
     config = Configurator(settings=settings)
-    if JournalHandler:
-        config.add_subscriber(set_journal_handler, ContextFound)
-        config.add_subscriber(clear_journal_handler, BeforeRender)
+    config.add_subscriber(add_logging_context, ContextFound)
     config.include('pyramid_exclog')
     config.add_route('home', '/')
     config.add_route('resync_all', '/resync_all')

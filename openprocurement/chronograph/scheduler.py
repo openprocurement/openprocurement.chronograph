@@ -9,6 +9,7 @@ from couchdb.http import ResourceConflict
 from time import sleep
 from random import randint
 from logging import getLogger
+from openprocurement.chronograph.utils import context_unpack
 
 
 LOG = getLogger(__name__)
@@ -130,7 +131,7 @@ def planning_auction(tender, start, db, quick=False, lot_id=None):
     return start
 
 
-def check_tender(tender, db):
+def check_tender(request, tender, db):
     enquiryPeriodEnd = tender.get('enquiryPeriod', {}).get('endDate')
     enquiryPeriodEnd = enquiryPeriodEnd and parse_date(enquiryPeriodEnd, TZ).astimezone(TZ)
     tenderPeriodStart = tender.get('tenderPeriod', {}).get('startDate')
@@ -370,7 +371,14 @@ def push(url, params):
         tx, ty = ty, tx + ty
 
 
-def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, request_id):
+def resync_tender(request):
+    tender_id = request.matchdict['tender_id']
+    scheduler = request.registry.scheduler
+    url = request.registry.api_url + 'tenders/' + tender_id
+    api_token = request.registry.api_token
+    callback_url = request.registry.callback_url + 'resync/' + tender_id
+    db = request.registry.db
+    request_id = request.environ.get('REQUEST_ID', '')
     r = get_request(url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
     if r.status_code != requests.codes.ok:
         LOG.error("Error {} on getting tender '{}': {}".format(r.status_code, url, r.text))
@@ -381,7 +389,7 @@ def resync_tender(scheduler, url, api_token, callback_url, db, tender_id, reques
     else:
         json = r.json()
         tender = json['data']
-        changes, next_check = check_tender(tender, db)
+        changes, next_check = check_tender(request, tender, db)
         if changes:
             data = dumps({'data': changes})
             r = requests.patch(url,
