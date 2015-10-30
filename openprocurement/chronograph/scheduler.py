@@ -101,7 +101,7 @@ def planning_auction(tender, start, db, quick=False, lot_id=None):
     skipped_days = 0
     if quick:
         quick_start = calc_auction_end_time(0, start)
-        return quick_start
+        return (quick_start, 0, skipped_days)
     start += timedelta(hours=1)
     if start.time() < WORKING_DAY_START:
         nextDate = start.date()
