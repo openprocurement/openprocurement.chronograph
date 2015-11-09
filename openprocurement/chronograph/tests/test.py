@@ -78,6 +78,11 @@ class SimpleTest(BaseWebTest):
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
 
+    def test_resync_back(self):
+        response = self.app.get('/resync_back')
+        self.assertEqual(response.status, '200 OK')
+        self.assertNotEqual(response.json, None)
+
     def test_resync_one(self):
         response = self.app.get('/resync/all')
         self.assertEqual(response.status, '200 OK')

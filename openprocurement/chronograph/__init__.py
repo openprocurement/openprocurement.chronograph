@@ -48,6 +48,7 @@ def main(global_config, **settings):
     config.include('pyramid_exclog')
     config.add_route('home', '/')
     config.add_route('resync_all', '/resync_all')
+    config.add_route('resync_back', '/resync_back')
     config.add_route('resync', '/resync/{tender_id}')
     config.add_route('calendar', '/calendar')
     config.add_route('calendar_entry', '/calendar/{date}')

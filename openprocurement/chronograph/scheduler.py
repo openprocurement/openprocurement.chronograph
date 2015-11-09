@@ -446,7 +446,14 @@ def resync_tender(request):
     return next_check and next_check.isoformat()
 
 
-def resync_tenders(scheduler, next_url, api_token, callback_url, request_id):
+def resync_tenders(request):
+    next_url = request.params.get('url', '')
+    if not next_url:
+        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status'
+    scheduler = request.registry.scheduler
+    api_token = request.registry.api_token
+    callback_url = request.registry.callback_url
+    request_id = request.environ.get('REQUEST_ID', '')
     while True:
         try:
             r = get_request(next_url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
@@ -455,11 +462,21 @@ def resync_tenders(scheduler, next_url, api_token, callback_url, request_id):
                 break
             elif r.status_code != requests.codes.ok:
                 break
-            json = r.json()
-            next_url = json['next_page']['uri']
+            else:
+                json = r.json()
+                next_url = json['next_page']['uri']
+                if "descending=1" in next_url:
+                    run_date = get_now()
+                    scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
+                                      id='resync_back', name="Resync back", misfire_grace_time=60 * 60,
+                                      args=[callback_url + 'resync_back', {'url': next_url}],
+                                      replace_existing=True)
+                    next_url = json['prev_page']['uri']
             if not json['data']:
                 break
             for tender in json['data']:
+                if not tender.get('status', 'active').startswith('active'):
+                    continue
                 resync_job = scheduler.get_job(tender['id'])
                 run_date = get_now()
                 if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
@@ -474,5 +491,46 @@ def resync_tenders(scheduler, next_url, api_token, callback_url, request_id):
     scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
                       id='resync_all', name="Resync all", misfire_grace_time=60 * 60,
                       args=[callback_url + 'resync_all', {'url': next_url}],
+                      replace_existing=True)
+    return next_url
+
+
+def resync_tenders_back(request):
+    next_url = request.params.get('url', '')
+    if not next_url:
+        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status'
+    scheduler = request.registry.scheduler
+    api_token = request.registry.api_token
+    callback_url = request.registry.callback_url
+    request_id = request.environ.get('REQUEST_ID', '')
+    while True:
+        try:
+            r = get_request(next_url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
+            if r.status_code == requests.codes.not_found:
+                next_url = ''
+                break
+            elif r.status_code != requests.codes.ok:
+                break
+            json = r.json()
+            next_url = json['next_page']['uri']
+            if not json['data']:
+                return next_url
+            for tender in json['data']:
+                if not tender.get('status', 'active').startswith('active'):
+                    continue
+                resync_job = scheduler.get_job(tender['id'])
+                run_date = get_now()
+                if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
+                    scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
+                                      id=tender['id'], name="Resync {}".format(tender['id']), misfire_grace_time=60 * 60,
+                                      args=[callback_url + 'resync/' + tender['id'], None],
+                                      replace_existing=True)
+            sleep(0.1)
+        except:
+            break
+    run_date = get_now() + timedelta(minutes=1)
+    scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
+                      id='resync_back', name="Resync back", misfire_grace_time=60 * 60,
+                      args=[callback_url + 'resync_back', {'url': next_url}],
                       replace_existing=True)
     return next_url
