@@ -3,6 +3,7 @@ import unittest
 import webtest
 import os
 import requests.api
+from datetime import datetime, timedelta
 from requests.models import Response
 from requests.structures import CaseInsensitiveDict
 from requests.utils import get_encoding_from_headers
@@ -10,7 +11,6 @@ from openprocurement.chronograph.scheduler import SESSION
 try:
     from openprocurement.api.tests.base import test_tender_data
 except ImportError:
-    from datetime import datetime, timedelta
     now = datetime.now()
     test_tender_data = {
         "title": u"футляри до державних нагород",
@@ -169,12 +169,23 @@ class BaseTenderWebTest(BaseWebTest):
             }})
             self.assertEqual(response.status, '200 OK')
         if self.initial_bids:
+            self.api.authorization = ('Basic', ('chronograph', ''))
+            now = datetime.now()
             response = self.api.patch_json('{}tenders/{}'.format(self.app.app.registry.api_url, self.tender_id), {
                 'data': {
-                    'status': 'active.tendering'
+                    'status': 'active.tendering',
+                    "enquiryPeriod": {
+                        "startDate": now.isoformat(),
+                        "endDate": now.isoformat()
+                    },
+                    "tenderPeriod": {
+                        "startDate": now.isoformat(),
+                        "endDate": (now + timedelta(days=1)).isoformat()
+                    }
                 }
             })
             bids = []
+            self.api.authorization = ('Basic', ('token', ''))
             for i in self.initial_bids:
                 if self.initial_lots:
                     i = i.copy()
@@ -189,6 +200,15 @@ class BaseTenderWebTest(BaseWebTest):
                 response = self.api.post_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id + '/bids', {'data': i})
                 bids.append(response.json['data'])
             self.initial_bids = bids
+            self.api.authorization = ('Basic', ('chronograph', ''))
+            response = self.api.patch_json('{}tenders/{}'.format(self.app.app.registry.api_url, self.tender_id), {
+                'data': {
+                    'status': 'active.tendering',
+                    "enquiryPeriod": tender["enquiryPeriod"],
+                    "tenderPeriod": tender["tenderPeriod"]
+                }
+            })
+            self.api.authorization = ('Basic', ('token', ''))
 
     def tearDown(self):
         if self.sandbox:
