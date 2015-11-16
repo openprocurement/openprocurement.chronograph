@@ -429,10 +429,10 @@ def resync_tender(request):
         changes, next_check = check_tender(request, tender, db)
         if changes:
             data = dumps({'data': changes})
-            r = requests.patch(url,
-                               data=data,
-                               headers={'Content-Type': 'application/json', 'X-Client-Request-ID': request_id},
-                               auth=(api_token, ''))
+            r = SESSION.patch(url,
+                              data=data,
+                              headers={'Content-Type': 'application/json', 'X-Client-Request-ID': request_id},
+                              auth=(api_token, ''))
             if r.status_code != requests.codes.ok:
                 LOGGER.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text),
                              extra=context_unpack(request, {'MESSAGE_ID': 'error_patch_tender'}, {'ERROR_STATUS': r.status_code}))
