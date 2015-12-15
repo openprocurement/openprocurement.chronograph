@@ -41,14 +41,14 @@ def get_calendar(db, calendar_id=CALENDAR_ID):
     return db.get(calendar_id, {'_id': calendar_id})
 
 
-def set_holiday(db, day, calendar_id=CALENDAR_ID):
+def set_holiday(db, day):
     calendar = get_calendar(db)
     key = parse_date(day).date().isoformat()
     calendar[key] = True
     db.save(calendar)
 
 
-def delete_holiday(db, day, calendar_id=CALENDAR_ID):
+def delete_holiday(db, day):
     calendar = get_calendar(db)
     key = parse_date(day).date().isoformat()
     if key in calendar:
