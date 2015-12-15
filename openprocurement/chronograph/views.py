@@ -1,12 +1,13 @@
 from pyramid.view import view_config
 from openprocurement.chronograph.scheduler import (
-    resync_tender,
-    resync_tenders_back,
-    resync_tenders,
-    get_calendar,
-    set_holiday,
     delete_holiday,
+    get_calendar,
     get_streams,
+    recheck_tender,
+    resync_tender,
+    resync_tenders,
+    resync_tenders_back,
+    set_holiday,
     set_streams,
 )
 
@@ -32,6 +33,11 @@ def resync_back(request):
 @view_config(route_name='resync', renderer='json')
 def resync(request):
     return resync_tender(request)
+
+
+@view_config(route_name='recheck', renderer='json')
+def recheck(request):
+    return recheck_tender(request)
 
 
 @view_config(route_name='calendar', renderer='json')

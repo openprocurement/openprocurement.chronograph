@@ -84,6 +84,7 @@ class BaseWebTest(unittest.TestCase):
         self.api = api = webtest.TestApp("config:tests.ini", relative_to=os.path.dirname(__file__))
         self.api.authorization = ('Basic', ('token', ''))
         self.api_db = self.api.app.registry.db
+        app = None
 
         def request(method, url, **kwargs):
             if 'data' in kwargs:
@@ -171,17 +172,21 @@ class BaseTenderWebTest(BaseWebTest):
         if self.initial_bids:
             self.api.authorization = ('Basic', ('chronograph', ''))
             now = datetime.now()
+            data = self.api_db.get(self.tender_id)
+            data.update({
+                "enquiryPeriod": {
+                    "startDate": now.isoformat(),
+                    "endDate": now.isoformat()
+                },
+                "tenderPeriod": {
+                    "startDate": now.isoformat(),
+                    "endDate": (now + timedelta(days=1)).isoformat()
+                }
+            })
+            self.api_db.save(data)
             response = self.api.patch_json('{}tenders/{}'.format(self.app.app.registry.api_url, self.tender_id), {
                 'data': {
-                    'status': 'active.tendering',
-                    "enquiryPeriod": {
-                        "startDate": now.isoformat(),
-                        "endDate": now.isoformat()
-                    },
-                    "tenderPeriod": {
-                        "startDate": now.isoformat(),
-                        "endDate": (now + timedelta(days=1)).isoformat()
-                    }
+                    'id': self.tender_id
                 }
             })
             bids = []
@@ -200,14 +205,13 @@ class BaseTenderWebTest(BaseWebTest):
                 response = self.api.post_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id + '/bids', {'data': i})
                 bids.append(response.json['data'])
             self.initial_bids = bids
-            self.api.authorization = ('Basic', ('chronograph', ''))
-            response = self.api.patch_json('{}tenders/{}'.format(self.app.app.registry.api_url, self.tender_id), {
-                'data': {
-                    'status': 'active.tendering',
-                    "enquiryPeriod": tender["enquiryPeriod"],
-                    "tenderPeriod": tender["tenderPeriod"]
-                }
+            data = self.api_db.get(self.tender_id)
+            data.update({
+                'status': 'active.tendering',
+                "enquiryPeriod": tender["enquiryPeriod"],
+                "tenderPeriod": tender["tenderPeriod"]
             })
+            self.api_db.save(data)
             self.api.authorization = ('Basic', ('token', ''))
 
     def tearDown(self):

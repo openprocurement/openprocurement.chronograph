@@ -50,6 +50,7 @@ def main(global_config, **settings):
     config.add_route('resync_all', '/resync_all')
     config.add_route('resync_back', '/resync_back')
     config.add_route('resync', '/resync/{tender_id}')
+    config.add_route('recheck', '/recheck/{tender_id}')
     config.add_route('calendar', '/calendar')
     config.add_route('calendar_entry', '/calendar/{date}')
     config.add_route('streams', '/streams')
