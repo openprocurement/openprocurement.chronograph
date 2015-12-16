@@ -295,6 +295,8 @@ def resync_tenders(request):
     next_url = request.params.get('url', '')
     if not next_url:
         next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status'
+    elif 'opt_fields=status' not in next_url:
+        next_url += '&opt_fields=status'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
