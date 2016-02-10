@@ -322,24 +322,24 @@ def process_listing(tenders, scheduler, callback_url):
             elif not recheck_job or recheck_job.next_run_time != next_check:
                 scheduler.add_job(push, 'date', run_date=next_check, **check_args)
         if any([
-            'shouldStartAfter' in i.get('auctionPeriod', {}) and i['auctionPeriod']['shouldStartAfter'] > i['auctionPeriod'].get('startDate', 'A')
+            'shouldStartAfter' in i.get('auctionPeriod', {}) and i['auctionPeriod']['shouldStartAfter'] > i['auctionPeriod'].get('startDate')
             for i in tender.get('lots', [])
         ]) or (
-            'shouldStartAfter' in tender.get('auctionPeriod', {}) and tender['auctionPeriod']['shouldStartAfter'] > tender['auctionPeriod'].get('startDate', 'A')
+            'shouldStartAfter' in tender.get('auctionPeriod', {}) and tender['auctionPeriod']['shouldStartAfter'] > tender['auctionPeriod'].get('startDate')
         ):
             resync_job = scheduler.get_job(tid)
             if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
-                #TODO replanning
                 scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
-                    id=tid, name="Resync {}".format(tid), misfire_grace_time=60 * 60,
-                    args=[callback_url + 'resync/' + tid, None],
-                    replace_existing=True)
+                                  id=tid, name="Resync {}".format(tid),
+                                  misfire_grace_time=60 * 60,
+                                  args=[callback_url + 'resync/' + tid, None],
+                                  replace_existing=True)
 
 
 def resync_tenders(request):
     next_url = request.params.get('url', '')
     if not next_url:
-        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status,auctionPeriod,next_check'
+        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status,auctionPeriod,lots,next_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
@@ -370,7 +370,8 @@ def resync_tenders(request):
             break
     run_date = get_now() + timedelta(minutes=1)
     scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
-                      id='resync_all', name="Resync all", misfire_grace_time=60 * 60,
+                      id='resync_all', name="Resync all",
+                      misfire_grace_time=60 * 60,
                       args=[callback_url + 'resync_all', {'url': next_url}],
                       replace_existing=True)
     return next_url
@@ -379,7 +380,7 @@ def resync_tenders(request):
 def resync_tenders_back(request):
     next_url = request.params.get('url', '')
     if not next_url:
-        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status,auctionPeriod,next_check'
+        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status,auctionPeriod,lots,next_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
