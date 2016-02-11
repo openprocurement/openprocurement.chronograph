@@ -255,7 +255,7 @@ def resync_tender(request):
                              extra=context_unpack(request, {'MESSAGE_ID': 'error_patch_tender'}, {'ERROR_STATUS': r.status_code}))
                 next_sync = get_now() + timedelta(minutes=1)
             elif r.json():
-                if r.json()['data']['next_check']:
+                if r.json()['data'].get('next_check'):
                     next_check = parse_date(r.json()['data']['next_check'], TZ).astimezone(TZ)
     if next_check:
         check_args = dict(timezone=TZ, id="recheck_{}".format(tender_id),
@@ -291,7 +291,7 @@ def recheck_tender(request):
                      extra=context_unpack(request, {'MESSAGE_ID': 'error_check_tender'}, {'ERROR_STATUS': r.status_code}))
         if r.status_code not in [requests.codes.forbidden, requests.codes.not_found]:
             next_check = get_now() + timedelta(minutes=1)
-    elif r.json() and r.json()['data']['next_check']:
+    elif r.json() and r.json()['data'].get('next_check'):
         next_check = parse_date(r.json()['data']['next_check'], TZ).astimezone(TZ)
     if next_check:
         check_args = dict(timezone=TZ, id="recheck_{}".format(tender_id),
