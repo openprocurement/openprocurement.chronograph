@@ -189,8 +189,10 @@ class BaseTenderWebTest(BaseWebTest):
                     'id': self.tender_id
                 }
             })
-            bids = []
+            self.assertEqual(response.status, '200 OK')
+            self.assertEqual(response.json['data']['status'], 'active.tendering')
             self.api.authorization = ('Basic', ('token', ''))
+            bids = []
             for i in self.initial_bids:
                 if self.initial_lots:
                     i = i.copy()

@@ -144,105 +144,51 @@ def skipped_days(days):
 
 
 def check_tender(request, tender, db):
-    tenderPeriodEnd = tender.get('tenderPeriod', {}).get('endDate')
-    tenderPeriodEnd = tenderPeriodEnd and parse_date(tenderPeriodEnd, TZ).astimezone(TZ)
     now = get_now()
-    if not tender.get('lots') and tender['status'] in ['active.tendering', 'active.auction'] and not tender.get('auctionPeriod'):
+    quick = environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
+    if not tender.get('lots') and 'shouldStartAfter' in tender.get('auctionPeriod', {}) and tender['auctionPeriod']['shouldStartAfter'] > tender['auctionPeriod'].get('startDate'):
+        period = tender.get('auctionPeriod')
+        shouldStartAfter = max(parse_date(period.get('shouldStartAfter'), TZ).astimezone(TZ), now)
         planned = False
-        quick = environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
         while not planned:
             try:
-                auctionPeriod, stream, skip_days = planning_auction(tender, tenderPeriodEnd, db, quick)
+                auctionPeriod, stream, skip_days = planning_auction(tender, shouldStartAfter, db, quick)
                 planned = True
             except ResourceConflict:
                 planned = False
-        auctionPeriod = randomize(auctionPeriod)
-        tenderAuctionEnd = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), auctionPeriod)
-        auctionPeriod = auctionPeriod.isoformat()
-        LOGGER.info('Planned auction for tender {} to {}. Stream {}.{}'.format(tender['id'], auctionPeriod, stream, skipped_days(skip_days)),
+        auctionPeriod = randomize(auctionPeriod).isoformat()
+        planned = 'replanned' if period.get('startDate') else 'planned'
+        LOGGER.info('{} auction for tender {} to {}. Stream {}.{}'.format(planned.title(), tender['id'], auctionPeriod, stream, skipped_days(skip_days)),
                     extra=context_unpack(request,
-                                         {'MESSAGE_ID': 'planned_auction_tender'},
+                                         {'MESSAGE_ID': '{}_auction_tender'.format(planned)},
                                          {'PLANNED_DATE': auctionPeriod, 'PLANNED_STREAM': stream, 'PLANNED_DAYS_SKIPPED': skip_days}))
-        return {'auctionPeriod': {'startDate': auctionPeriod}}, randomize(tenderPeriodEnd) if tender['status'] == 'active.tendering' else tenderAuctionEnd + MIN_PAUSE
-    elif not tender.get('lots') and tender['status'] == 'active.auction' and tender.get('auctionPeriod'):
-        tenderAuctionStart = parse_date(tender.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
-        tenderAuctionEnd = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), tenderAuctionStart)
-        if now > tenderAuctionEnd + MIN_PAUSE:
-            planned = False
-            quick = environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
-            while not planned:
-                try:
-                    auctionPeriod, stream, skip_days = planning_auction(tender, now, db, quick)
-                    planned = True
-                except ResourceConflict:
-                    planned = False
-            auctionPeriod = randomize(auctionPeriod)
-            tenderAuctionEnd = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), auctionPeriod)
-            auctionPeriod = auctionPeriod.isoformat()
-            LOGGER.info('Replanned auction for tender {} to {}. Stream {}.{}'.format(tender['id'], auctionPeriod, stream, skipped_days(skip_days)),
-                        extra=context_unpack(request,
-                                             {'MESSAGE_ID': 'replanned_auction_tender'},
-                                             {'PLANNED_DATE': auctionPeriod, 'PLANNED_STREAM': stream, 'PLANNED_DAYS_SKIPPED': skip_days}))
-            return {'auctionPeriod': {'startDate': auctionPeriod}}, tenderAuctionEnd + MIN_PAUSE
-        else:
-            return None, tenderAuctionEnd + MIN_PAUSE
-    elif tender.get('lots') and tender['status'] in ['active.tendering', 'active.auction'] and any([not lot.get('auctionPeriod') for lot in tender['lots'] if lot['status'] == 'active']):
-        quick = environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
+        return {'auctionPeriod': {'startDate': auctionPeriod}}
+    elif tender.get('lots'):
         lots = []
         for lot in tender.get('lots', []):
-            if lot['status'] != 'active' or lot.get('auctionPeriod'):
+            if lot['status'] != 'active' or 'shouldStartAfter' not in lot.get('auctionPeriod', {}) or lot['auctionPeriod']['shouldStartAfter'] < lot['auctionPeriod'].get('startDate'):
                 lots.append({})
                 continue
+            period = lot.get('auctionPeriod')
+            shouldStartAfter = max(parse_date(period.get('shouldStartAfter'), TZ).astimezone(TZ), now)
             lot_id = lot['id']
             planned = False
             while not planned:
                 try:
-                    auctionPeriod, stream, skip_days = planning_auction(tender, tenderPeriodEnd, db, quick, lot_id)
+                    auctionPeriod, stream, skip_days = planning_auction(tender, shouldStartAfter, db, quick, lot_id)
                     planned = True
                 except ResourceConflict:
                     planned = False
             auctionPeriod = randomize(auctionPeriod).isoformat()
+            planned = 'replanned' if period.get('startDate') else 'planned'
             lots.append({'auctionPeriod': {'startDate': auctionPeriod}})
-            LOGGER.info('Planned auction for lot {} of tender {} to {}. Stream {}.{}'.format(lot_id, tender['id'], auctionPeriod, stream, skipped_days(skip_days)),
+            LOGGER.info('{} auction for lot {} of tender {} to {}. Stream {}.{}'.format(planned.title(), lot_id, tender['id'], auctionPeriod, stream, skipped_days(skip_days)),
                         extra=context_unpack(request,
-                                             {'MESSAGE_ID': 'planned_auction_lot'},
+                                             {'MESSAGE_ID': '{}_auction_lot'.format(planned)},
                                              {'PLANNED_DATE': auctionPeriod, 'PLANNED_STREAM': stream, 'PLANNED_DAYS_SKIPPED': skip_days, 'LOT_ID': lot_id}))
-        return {'lots': lots}, randomize(tenderPeriodEnd) if tender['status'] == 'active.tendering' else now
-    elif tender.get('lots') and tender['status'] == 'active.auction':
-        quick = environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
-        lots = []
-        lots_ends = []
-        for lot in tender.get('lots', []):
-            if lot['status'] != 'active' or lot.get('auctionPeriod', {}).get('endDate'):
-                lots.append({})
-                continue
-            lot_id = lot['id']
-            lotAuctionStart = parse_date(lot.get('auctionPeriod', {}).get('startDate'), TZ).astimezone(TZ)
-            lotAuctionEnd = calc_auction_end_time(lot['numberOfBids'], lotAuctionStart)
-            if now > lotAuctionEnd + MIN_PAUSE:
-                planned = False
-                while not planned:
-                    try:
-                        auctionPeriod, stream, skip_days = planning_auction(tender, now, db, quick, lot_id)
-                        planned = True
-                    except ResourceConflict:
-                        planned = False
-                auctionPeriod = randomize(auctionPeriod)
-                lotAuctionEnd = calc_auction_end_time(lot['numberOfBids'], auctionPeriod)
-                auctionPeriod = auctionPeriod.isoformat()
-                lots.append({'auctionPeriod': {'startDate': auctionPeriod}})
-                lots_ends.append(lotAuctionEnd + MIN_PAUSE)
-                LOGGER.info('Replanned auction for lot {} of tender {} to {}. Stream {}.{}'.format(lot_id, tender['id'], auctionPeriod, stream, skipped_days(skip_days)),
-                            extra=context_unpack(request,
-                                                 {'MESSAGE_ID': 'replanned_auction_lot'},
-                                                 {'PLANNED_DATE': auctionPeriod, 'PLANNED_STREAM': stream, 'PLANNED_DAYS_SKIPPED': skip_days, 'LOT_ID': lot_id}))
-            else:
-                lots_ends.append(lotAuctionEnd + MIN_PAUSE)
         if any(lots):
-            return {'lots': lots}, min(lots_ends)
-        else:
-            return None, min(lots_ends)
-    return None, None
+            return {'lots': lots}
+    return None
 
 
 def get_request(url, auth, headers=None):
@@ -297,7 +243,7 @@ def resync_tender(request):
     else:
         json = r.json()
         tender = json['data']
-        changes, next_sync = check_tender(request, tender, db)
+        changes = check_tender(request, tender, db)
         if changes:
             data = dumps({'data': changes})
             r = SESSION.patch(url,
@@ -309,9 +255,7 @@ def resync_tender(request):
                              extra=context_unpack(request, {'MESSAGE_ID': 'error_patch_tender'}, {'ERROR_STATUS': r.status_code}))
                 next_sync = get_now() + timedelta(minutes=1)
             elif r.json():
-                if not r.json()['data']['status'].startswith('active'):
-                    next_sync = None
-                if r.json()['data']['next_check']:
+                if r.json()['data'].get('next_check'):
                     next_check = parse_date(r.json()['data']['next_check'], TZ).astimezone(TZ)
     if next_check:
         check_args = dict(timezone=TZ, id="recheck_{}".format(tender_id),
@@ -347,7 +291,7 @@ def recheck_tender(request):
                      extra=context_unpack(request, {'MESSAGE_ID': 'error_check_tender'}, {'ERROR_STATUS': r.status_code}))
         if r.status_code not in [requests.codes.forbidden, requests.codes.not_found]:
             next_check = get_now() + timedelta(minutes=1)
-    elif r.json() and r.json()['data']['next_check']:
+    elif r.json() and r.json()['data'].get('next_check'):
         next_check = parse_date(r.json()['data']['next_check'], TZ).astimezone(TZ)
     if next_check:
         check_args = dict(timezone=TZ, id="recheck_{}".format(tender_id),
@@ -377,24 +321,25 @@ def process_listing(tenders, scheduler, callback_url):
                 scheduler.add_job(push, 'date', run_date=run_date, **check_args)
             elif not recheck_job or recheck_job.next_run_time != next_check:
                 scheduler.add_job(push, 'date', run_date=next_check, **check_args)
-        tender_status = tender.get('status', 'active')
-        resync_job = scheduler.get_job(tid)
-        if tender_status in ['active.tendering', 'active.auction'] and 'auctionPeriod' not in tender and (not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1)):
-            scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
-                              id=tid, name="Resync {}".format(tid), misfire_grace_time=60 * 60,
-                              args=[callback_url + 'resync/' + tid, None],
-                              replace_existing=True)
-        elif tender_status == 'active.auction' and not resync_job:
-            scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
-                              id=tid, name="Resync {}".format(tid), misfire_grace_time=60 * 60,
-                              args=[callback_url + 'resync/' + tid, None],
-                              replace_existing=True)
+        if any([
+            'shouldStartAfter' in i.get('auctionPeriod', {}) and i['auctionPeriod']['shouldStartAfter'] > i['auctionPeriod'].get('startDate')
+            for i in tender.get('lots', [])
+        ]) or (
+            'shouldStartAfter' in tender.get('auctionPeriod', {}) and tender['auctionPeriod']['shouldStartAfter'] > tender['auctionPeriod'].get('startDate')
+        ):
+            resync_job = scheduler.get_job(tid)
+            if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
+                scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
+                                  id=tid, name="Resync {}".format(tid),
+                                  misfire_grace_time=60 * 60,
+                                  args=[callback_url + 'resync/' + tid, None],
+                                  replace_existing=True)
 
 
 def resync_tenders(request):
     next_url = request.params.get('url', '')
     if not next_url:
-        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status,auctionPeriod,next_check'
+        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status,auctionPeriod,lots,next_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
@@ -425,7 +370,8 @@ def resync_tenders(request):
             break
     run_date = get_now() + timedelta(minutes=1)
     scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
-                      id='resync_all', name="Resync all", misfire_grace_time=60 * 60,
+                      id='resync_all', name="Resync all",
+                      misfire_grace_time=60 * 60,
                       args=[callback_url + 'resync_all', {'url': next_url}],
                       replace_existing=True)
     return next_url
@@ -434,7 +380,7 @@ def resync_tenders(request):
 def resync_tenders_back(request):
     next_url = request.params.get('url', '')
     if not next_url:
-        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status,auctionPeriod,next_check'
+        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status,auctionPeriod,lots,next_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url

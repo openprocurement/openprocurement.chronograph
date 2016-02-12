@@ -224,6 +224,49 @@ class TenderTest(BaseTenderWebTest):
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.enquiries')
 
+    def test_set_auctionPeriod_jobs(self):
+        now = datetime.now(TZ)
+        self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
+            'data': {
+                "enquiryPeriod": {
+                    "endDate": now.isoformat()
+                },
+                'tenderPeriod': {
+                    'startDate': now.isoformat(),
+                    'endDate': (now + timedelta(days=1)).isoformat()
+                }
+            }
+        })
+        self.app.app.registry.scheduler.start()
+        response = self.app.get('/resync_all')
+        self.assertEqual(response.status, '200 OK')
+        self.assertNotEqual(response.json, None)
+        response = self.app.get('/')
+        self.app.app.registry.scheduler.shutdown()
+        self.assertEqual(response.status, '200 OK')
+        self.assertIn('jobs', response.json)
+        self.assertEqual(len(response.json['jobs']), 2)
+        self.assertIn("recheck_{}".format(self.tender_id), response.json['jobs'])
+
+        response = self.app.get('/recheck/' + self.tender_id)
+        self.assertEqual(response.status, '200 OK')
+        self.assertNotEqual(response.json, None)
+
+        self.app.app.registry.scheduler.start()
+        self.app.get('/resync_all')
+        self.app.app.registry.scheduler.shutdown()
+
+        response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
+        tender = response.json['data']
+        self.assertEqual(tender['status'], 'active.tendering')
+
+        if self.initial_lots:
+            self.assertIn('auctionPeriod', tender['lots'][0])
+            self.assertIn('startDate', tender['lots'][0]['auctionPeriod'])
+        else:
+            self.assertIn('auctionPeriod', tender)
+            self.assertIn('startDate', tender['auctionPeriod'])
+
     def test_set_auctionPeriod_nextday(self):
         now = datetime.now(TZ)
         response = self.api.patch_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id, {
@@ -245,7 +288,7 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(tender['status'], 'active.tendering')
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertNotEqual(response.json, None)
+        self.assertEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
@@ -262,7 +305,7 @@ class TenderTest(BaseTenderWebTest):
         response = self.app.get('/')
         self.assertEqual(response.status, '200 OK')
         self.assertIn('jobs', response.json)
-        self.assertIn(self.tender_id, response.json['jobs'])
+        self.assertIn('recheck_{}'.format(self.tender_id), response.json['jobs'])
         self.assertEqual(parse_date(response.json['jobs']["recheck_{}".format(self.tender_id)]).utctimetuple(), parse_date(tender['tenderPeriod']['endDate']).utctimetuple())
 
     def test_set_auctionPeriod_skip_weekend(self):
@@ -286,7 +329,7 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(tender['status'], 'active.tendering')
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertNotEqual(response.json, None)
+        self.assertEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
@@ -323,7 +366,7 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(tender['status'], 'active.tendering')
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertNotEqual(response.json, None)
+        self.assertEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
@@ -357,7 +400,7 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(tender['status'], 'active.tendering')
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertNotEqual(response.json, None)
+        self.assertEqual(response.json, None)
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.tendering')
@@ -464,10 +507,25 @@ class TenderTest3(BaseTenderWebTest):
         response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
         tender = response.json['data']
         self.assertEqual(tender['status'], 'active.auction')
-        self.assertNotIn('auctionPeriod', tender)
+        if self.initial_lots:
+            self.assertNotIn('auctionPeriod', tender)
+            self.assertIn('auctionPeriod', tender['lots'][0])
+            self.assertIn('shouldStartAfter', tender['lots'][0]['auctionPeriod'])
+            self.assertNotIn('startDate', tender['lots'][0]['auctionPeriod'])
+            self.assertGreater(tender['lots'][0]['auctionPeriod']['shouldStartAfter'], tender['lots'][0]['auctionPeriod'].get('startDate'))
+        else:
+            self.assertIn('auctionPeriod', tender)
+            self.assertIn('shouldStartAfter', tender['auctionPeriod'])
+            self.assertNotIn('startDate', tender['auctionPeriod'])
+            self.assertGreater(tender['auctionPeriod']['shouldStartAfter'], tender['auctionPeriod'].get('startDate'))
+
+        response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
+        tender = response.json['data']
+        self.assertEqual(tender['status'], 'active.auction')
+
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertNotEqual(response.json, None)
+        self.assertEqual(response.json, None)
         tender = self.api_db.get(self.tender_id)
         if self.initial_lots:
             self.assertIn('auctionPeriod', tender['lots'][0])
@@ -478,9 +536,25 @@ class TenderTest3(BaseTenderWebTest):
             auctionPeriod = tender['auctionPeriod']['startDate']
             tender['auctionPeriod']['startDate'] = (datetime.now(TZ) - timedelta(hours=1)).isoformat()
         self.api_db.save(tender)
+
+        response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
+        tender = response.json['data']
+        self.assertEqual(tender['status'], 'active.auction')
+        if self.initial_lots:
+            self.assertNotIn('auctionPeriod', tender)
+            self.assertIn('auctionPeriod', tender['lots'][0])
+            self.assertIn('shouldStartAfter', tender['lots'][0]['auctionPeriod'])
+            self.assertIn('startDate', tender['lots'][0]['auctionPeriod'])
+            self.assertGreater(tender['lots'][0]['auctionPeriod']['shouldStartAfter'], tender['lots'][0]['auctionPeriod'].get('startDate'))
+        else:
+            self.assertIn('auctionPeriod', tender)
+            self.assertIn('shouldStartAfter', tender['auctionPeriod'])
+            self.assertIn('startDate', tender['auctionPeriod'])
+            self.assertGreater(tender['auctionPeriod']['shouldStartAfter'], tender['auctionPeriod'].get('startDate'))
+
         response = self.app.get('/resync/' + self.tender_id)
         self.assertEqual(response.status, '200 OK')
-        self.assertNotEqual(response.json, None)
+        self.assertEqual(response.json, None)
         tender = self.api_db.get(self.tender_id)
         if self.initial_lots:
             self.assertIn('auctionPeriod', tender['lots'][0])
