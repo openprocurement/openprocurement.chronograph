@@ -34,7 +34,7 @@ def get_now():
 
 
 def randomize(dt):
-    return dt + timedelta(seconds=randint(0, 900))
+    return dt + timedelta(seconds=randint(0, 1799))
 
 
 def get_calendar(db, calendar_id=CALENDAR_ID):
