@@ -7,7 +7,7 @@ from time import sleep
 from logging import getLogger
 
 from openprocurement.chronograph import TZ
-from openprocurement.chronograph.scheduler import planning_auction
+from openprocurement.chronograph.scheduler import planning_auction, free_slot
 from openprocurement.chronograph.tests.base import BaseWebTest, BaseTenderWebTest, test_tender_data
 
 try:
@@ -577,6 +577,7 @@ class TenderLotTest4(TenderTest4):
 
 
 class TenderPlanning(BaseWebTest):
+    scheduler = False
 
     def test_auction_quick_planning(self):
         now = datetime.now(TZ)
@@ -592,6 +593,14 @@ class TenderPlanning(BaseWebTest):
             count += 1
             res = planning_auction(test_tender_data_test_quick, now, self.db)[0]
         self.assertEqual(count, 100)
+
+    def test_auction_planning_free(self):
+        now = datetime.now(TZ)
+        res = planning_auction(test_tender_data_test_quick, now, self.db)[0]
+        startDate, startTime = res.date(), res.time()
+        free_slot(self.db, "plantest_{}".format(startDate.isoformat()), res, "")
+        res = planning_auction(test_tender_data_test_quick, now, self.db)[0]
+        self.assertEqual(res.time(), startTime)
 
     def test_auction_planning_buffer(self):
         some_date = datetime(2015, 9, 21, 6, 30)

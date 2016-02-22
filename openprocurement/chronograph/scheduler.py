@@ -8,6 +8,7 @@ from iso8601 import parse_date
 from json import dumps
 from logging import getLogger
 from openprocurement.chronograph.utils import context_unpack
+from openprocurement.chronograph.design import plan_tenders_view
 from os import environ
 from pytz import timezone
 from random import randint
@@ -75,9 +76,10 @@ def get_date(db, mode, date):
     return plan_date.time(), plan.get('streams', 1), plan
 
 
-def set_date(db, plan, end_time, cur_stream, tender_id, start_time):
-    plan['time'] = end_time.isoformat()
-    plan['streams'] = cur_stream
+def set_date(db, plan, end_time, cur_stream, tender_id, start_time, new_slot=True):
+    if new_slot:
+        plan['time'] = end_time.isoformat()
+        plan['streams'] = cur_stream
     stream_id = 'stream_{}'.format(cur_stream)
     stream = plan.get(stream_id, {})
     stream[start_time.isoformat()] = tender_id
@@ -91,6 +93,17 @@ def calc_auction_end_time(bids, start):
     roundTo = ROUNDING.seconds
     rounding = (seconds + roundTo - 1) // roundTo * roundTo
     return (end + timedelta(0, rounding - seconds, -end.microsecond)).astimezone(TZ)
+
+
+def find_free_slot(plan):
+    streams = plan.get('streams', 0)
+    for cur_stream in range(1, streams + 1):
+        stream_id = 'stream_{}'.format(cur_stream)
+        for slot in plan[stream_id]:
+            if plan[stream_id].get(slot) is None:
+                plan_date = parse_date(plan['_id'].split('_')[1] + 'T' + slot, None)
+                plan_date = plan_date.astimezone(TZ) if plan_date.tzinfo else TZ.localize(plan_date)
+                return plan_date, cur_stream
 
 
 def planning_auction(tender, start, db, quick=False, lot_id=None):
@@ -107,11 +120,17 @@ def planning_auction(tender, start, db, quick=False, lot_id=None):
         nextDate = start.date()
     else:
         nextDate = start.date() + timedelta(days=1)
+    new_slot = True
     while True:
         if calendar.get(nextDate.isoformat()) or nextDate.weekday() in [5, 6]:  # skip Saturday and Sunday
             nextDate += timedelta(days=1)
             continue
         dayStart, stream, plan = get_date(db, mode, nextDate)
+        freeSlot = find_free_slot(plan)
+        if freeSlot:
+            startDate, stream = freeSlot
+            start, end, dayStart, new_slot = startDate, startDate, startDate.time(), False
+            break
         if dayStart >= WORKING_DAY_END and stream >= streams:
             nextDate += timedelta(days=1)
             skipped_days += 1
@@ -132,7 +151,7 @@ def planning_auction(tender, start, db, quick=False, lot_id=None):
         #date = start.date() + timedelta(n)
         #_, dayStream = get_date(db, mode, date.date())
         #set_date(db, mode, date.date(), WORKING_DAY_END, dayStream+1)
-    set_date(db, plan, end.time(), stream, "_".join([tid, lot_id]) if lot_id else tid, dayStart)
+    set_date(db, plan, end.time(), stream, "_".join([tid, lot_id]) if lot_id else tid, dayStart, new_slot)
     return (start, stream, skipped_days)
 
 
@@ -305,9 +324,48 @@ def recheck_tender(request):
     return next_check and next_check.isoformat()
 
 
-def process_listing(tenders, scheduler, callback_url):
+def free_slot(db, plan_id, plan_time, tender_id):
+    slot = plan_time.time().isoformat()
+    done = False
+    while not done:
+        try:
+            plan = db.get(plan_id)
+            streams = plan['streams']
+            for cur_stream in range(1, streams + 1):
+                stream_id = 'stream_{}'.format(cur_stream)
+                if plan[stream_id].get(slot) == tender_id:
+                    plan[stream_id][slot] = None
+            db.save(plan)
+            done = True
+        except ResourceConflict:
+            done = False
+        except:
+            done = True
+
+
+def check_auction(db, tender):
+    auction_time = tender.get('auctionPeriod', {}).get('startDate') and parse_date(tender.get('auctionPeriod', {}).get('startDate'))
+    lots = dict([
+        (i['id'], parse_date(i.get('auctionPeriod', {}).get('startDate')))
+        for i in tender.get('lots', [])
+        if i.get('auctionPeriod', {}).get('startDate')
+    ])
+    auc_dict = dict([
+        (x.key[1], (TZ.localize(parse_date(x.value, None)), x.id))
+        for x in plan_tenders_view(db, startkey=[tender['id'], None], endkey=[tender['id'], 32 * "f"])
+    ])
+    for key in auc_dict:
+        plan_time, plan_doc  = auc_dict.get(key)
+        if not key and (not auction_time or not plan_time < auction_time < plan_time + timedelta(minutes=30)):
+            free_slot(db, plan_doc, plan_time, tender['id'])
+        elif key and (not lots.get(key) or lots.get(key) and not plan_time < lots.get(key) < plan_time + timedelta(minutes=30)):
+            free_slot(db, plan_doc, plan_time, "_".join([tender['id'], key]))
+
+
+def process_listing(tenders, scheduler, callback_url, db):
     run_date = get_now()
     for tender in tenders:
+        check_auction(db, tender)
         tid = tender['id']
         next_check = tender.get('next_check')
         if next_check:
@@ -364,7 +422,7 @@ def resync_tenders(request):
                     next_url = json['prev_page']['uri']
             if not json['data']:
                 break
-            process_listing(json['data'], scheduler, callback_url)
+            process_listing(json['data'], scheduler, callback_url, request.registry.db)
             sleep(0.1)
         except:
             break
@@ -397,7 +455,7 @@ def resync_tenders_back(request):
             next_url = json['next_page']['uri']
             if not json['data']:
                 return next_url
-            process_listing(json['data'], scheduler, callback_url)
+            process_listing(json['data'], scheduler, callback_url, request.registry.db)
             sleep(0.1)
         except:
             break

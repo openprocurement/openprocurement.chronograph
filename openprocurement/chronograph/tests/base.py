@@ -97,27 +97,32 @@ class BaseWebTest(unittest.TestCase):
             for i in ['auth', 'allow_redirects', 'stream']:
                 if i in kwargs:
                     kwargs.pop(i)
-            if app.app.registry.api_url in url:
-                if auth:
-                    authorization = api.authorization
-                    api.authorization = ('Basic', auth)
-                resp = api._gen_request(method.upper(), url, expect_errors=True, **kwargs)
-                if auth:
-                    api.authorization = authorization
+            try:
+                if app.app.registry.api_url in url:
+                    if auth:
+                        authorization = api.authorization
+                        api.authorization = ('Basic', auth)
+                    resp = api._gen_request(method.upper(), url, expect_errors=True, **kwargs)
+                    if auth:
+                        api.authorization = authorization
+                else:
+                    resp = app._gen_request(method.upper(), url, expect_errors=True, **kwargs)
+            except:
+                response = Response()
+                response.status_code = 404
             else:
-                resp = app._gen_request(method.upper(), url, expect_errors=True, **kwargs)
-            response = Response()
-            response.status_code = resp.status_int
-            response.headers = CaseInsensitiveDict(getattr(resp, 'headers', {}))
-            response.encoding = get_encoding_from_headers(response.headers)
-            response.raw = resp
-            response._content = resp.body
-            response.reason = resp.status
-            if isinstance(url, bytes):
-                response.url = url.decode('utf-8')
-            else:
-                response.url = url
-            response.request = resp.request
+                response = Response()
+                response.status_code = resp.status_int
+                response.headers = CaseInsensitiveDict(getattr(resp, 'headers', {}))
+                response.encoding = get_encoding_from_headers(response.headers)
+                response.raw = resp
+                response._content = resp.body
+                response.reason = resp.status
+                if isinstance(url, bytes):
+                    response.url = url.decode('utf-8')
+                else:
+                    response.url = url
+                response.request = resp.request
             return response
 
         self._request = requests.api.request

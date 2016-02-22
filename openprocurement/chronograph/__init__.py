@@ -8,6 +8,7 @@ from couchdb import Server, Session
 from couchdb.http import Unauthorized, extract_credentials
 from datetime import datetime, timedelta
 #from openprocurement.chronograph.jobstores import CouchDBJobStore
+from openprocurement.chronograph.design import sync_design
 from openprocurement.chronograph.scheduler import push
 from openprocurement.chronograph.utils import add_logging_context
 from pyramid.config import Configurator
@@ -64,7 +65,7 @@ def main(global_config, **settings):
         try:
             server.version()
         except Unauthorized:
-            server = Server(extract_credentials(settings.get('couchdb.url'))[0])
+            server = Server(extract_credentials(settings.get('couchdb.url'), session=Session(retry_delays=range(60)))[0])
     config.registry.couchdb_server = server
     if 'couchdb.admin_url' in settings and server.resource.credentials:
         aserver = Server(settings.get('couchdb.admin_url'), session=Session(retry_delays=range(10)))
@@ -96,10 +97,16 @@ def main(global_config, **settings):
             auth_doc['validate_doc_update'] = VALIDATE_DOC_UPDATE % username
             LOGGER.info("Updating chronograph db validate doc", extra={'MESSAGE_ID': 'update_chronograph_validate_doc'})
             db.save(auth_doc)
+        # sync couchdb views
+        sync_design(db)
+        db = server[db_name]
     else:
         if db_name not in server:
             server.create(db_name)
-    config.registry.db = server[db_name]
+        db = server[db_name]
+        # sync couchdb views
+        sync_design(db)
+    config.registry.db = db
 
     jobstores = {
         #'default': CouchDBJobStore(database=db_name, client=server)
