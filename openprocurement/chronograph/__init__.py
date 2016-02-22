@@ -65,7 +65,7 @@ def main(global_config, **settings):
         try:
             server.version()
         except Unauthorized:
-            server = Server(extract_credentials(settings.get('couchdb.url'), session=Session(retry_delays=range(60)))[0])
+            server = Server(extract_credentials(settings.get('couchdb.url')), session=Session(retry_delays=range(60))[0])
     config.registry.couchdb_server = server
     if 'couchdb.admin_url' in settings and server.resource.credentials:
         aserver = Server(settings.get('couchdb.admin_url'), session=Session(retry_delays=range(10)))
