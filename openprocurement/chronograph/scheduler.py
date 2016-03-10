@@ -402,6 +402,7 @@ def resync_tenders(request):
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
     request_id = request.environ.get('REQUEST_ID', '')
+    LOGGER.debug("Resync all started", extra=context_unpack(request, {'MESSAGE_ID': 'resync_all_started'}))
     while True:
         try:
             r = get_request(next_url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
@@ -424,8 +425,10 @@ def resync_tenders(request):
                 break
             process_listing(json['data'], scheduler, callback_url, request.registry.db)
             sleep(0.1)
-        except:
+        except Exception as e:
+            LOGGER.error("Error on resync all: {}".format(repr(e)), extra=context_unpack(request, {'MESSAGE_ID': 'error_resync_all'}))
             break
+    LOGGER.debug("Resync all stopped", extra=context_unpack(request, {'MESSAGE_ID': 'resync_all_stoped'}))
     run_date = get_now() + timedelta(minutes=1)
     scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
                       id='resync_all', name="Resync all",
@@ -443,6 +446,7 @@ def resync_tenders_back(request):
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
     request_id = request.environ.get('REQUEST_ID', '')
+    LOGGER.info("Resync back started", extra=context_unpack(request, {'MESSAGE_ID': 'resync_back_started'}))
     while True:
         try:
             r = get_request(next_url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
@@ -454,11 +458,14 @@ def resync_tenders_back(request):
             json = r.json()
             next_url = json['next_page']['uri']
             if not json['data']:
+                LOGGER.info("Resync back stopped", extra=context_unpack(request, {'MESSAGE_ID': 'resync_back_stoped'}))
                 return next_url
             process_listing(json['data'], scheduler, callback_url, request.registry.db)
             sleep(0.1)
-        except:
+        except Exception as e:
+            LOGGER.error("Error on resync back: {}".format(repr(e)), extra=context_unpack(request, {'MESSAGE_ID': 'error_resync_back'}))
             break
+    LOGGER.info("Resync back break", extra=context_unpack(request, {'MESSAGE_ID': 'resync_back_break'}))
     run_date = get_now() + timedelta(minutes=1)
     scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
                       id='resync_back', name="Resync back", misfire_grace_time=60 * 60,
