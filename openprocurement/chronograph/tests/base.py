@@ -8,6 +8,7 @@ from requests.models import Response
 from requests.structures import CaseInsensitiveDict
 from requests.utils import get_encoding_from_headers
 from openprocurement.chronograph.scheduler import SESSION
+from openprocurement.api.utils import VERSION
 try:
     from openprocurement.api.tests.base import test_tender_data
 except ImportError:
@@ -131,6 +132,7 @@ class BaseWebTest(unittest.TestCase):
         SESSION.request = request
 
         self.app = app = webtest.TestApp("config:chronograph.ini", relative_to=os.path.dirname(__file__))
+        self.app.app.registry.api_url = self.app.app.registry.api_url.replace('0.12', VERSION)
         self.couchdb_server = self.app.app.registry.couchdb_server
         self.db = self.app.app.registry.db
         if not self.scheduler:
