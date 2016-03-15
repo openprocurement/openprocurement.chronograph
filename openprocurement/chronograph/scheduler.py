@@ -396,13 +396,12 @@ def process_listing(tenders, scheduler, callback_url, db):
 
 def resync_tenders(request):
     next_url = request.params.get('url', '')
-    if not next_url:
-        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status,auctionPeriod,lots,next_check'
+    if not next_url or 'opt_fields=status%2CauctionPeriod%2Clots%2Cnext_check' not in next_url:
+        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2Clots%2Cnext_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
     request_id = request.environ.get('REQUEST_ID', '')
-    LOGGER.debug("Resync all started", extra=context_unpack(request, {'MESSAGE_ID': 'resync_all_started'}))
     while True:
         try:
             r = get_request(next_url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
@@ -428,7 +427,6 @@ def resync_tenders(request):
         except Exception as e:
             LOGGER.error("Error on resync all: {}".format(repr(e)), extra=context_unpack(request, {'MESSAGE_ID': 'error_resync_all'}))
             break
-    LOGGER.debug("Resync all stopped", extra=context_unpack(request, {'MESSAGE_ID': 'resync_all_stoped'}))
     run_date = get_now() + timedelta(minutes=1)
     scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
                       id='resync_all', name="Resync all",
@@ -441,7 +439,7 @@ def resync_tenders(request):
 def resync_tenders_back(request):
     next_url = request.params.get('url', '')
     if not next_url:
-        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status,auctionPeriod,lots,next_check'
+        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2Clots%2Cnext_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
