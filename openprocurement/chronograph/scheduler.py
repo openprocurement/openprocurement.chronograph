@@ -362,10 +362,11 @@ def check_auction(db, tender):
             free_slot(db, plan_doc, plan_time, "_".join([tender['id'], key]))
 
 
-def process_listing(tenders, scheduler, callback_url, db):
+def process_listing(tenders, scheduler, callback_url, db, check=True):
     run_date = get_now()
     for tender in tenders:
-        check_auction(db, tender)
+        if check:
+            check_auction(db, tender)
         tid = tender['id']
         next_check = tender.get('next_check')
         if next_check:
@@ -458,7 +459,7 @@ def resync_tenders_back(request):
             if not json['data']:
                 LOGGER.info("Resync back stopped", extra=context_unpack(request, {'MESSAGE_ID': 'resync_back_stoped'}))
                 return next_url
-            process_listing(json['data'], scheduler, callback_url, request.registry.db)
+            process_listing(json['data'], scheduler, callback_url, request.registry.db, True)
             sleep(0.1)
         except Exception as e:
             LOGGER.error("Error on resync back: {}".format(repr(e)), extra=context_unpack(request, {'MESSAGE_ID': 'error_resync_back'}))
