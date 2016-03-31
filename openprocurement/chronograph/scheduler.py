@@ -459,7 +459,7 @@ def resync_tenders_back(request):
             if not json['data']:
                 LOGGER.info("Resync back stopped", extra=context_unpack(request, {'MESSAGE_ID': 'resync_back_stoped'}))
                 return next_url
-            process_listing(json['data'], scheduler, callback_url, request.registry.db, True)
+            process_listing(json['data'], scheduler, callback_url, request.registry.db, False)
             sleep(0.1)
         except Exception as e:
             LOGGER.error("Error on resync back: {}".format(repr(e)), extra=context_unpack(request, {'MESSAGE_ID': 'error_resync_back'}))
