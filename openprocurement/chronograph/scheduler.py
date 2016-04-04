@@ -26,7 +26,10 @@ MIN_PAUSE = timedelta(minutes=3)
 BIDDER_TIME = timedelta(minutes=6)
 SERVICE_TIME = timedelta(minutes=9)
 STAND_STILL_TIME = timedelta(days=1)
+ADAPTER = requests.adapters.HTTPAdapter(pool_connections=3, pool_maxsize=3)
 SESSION = requests.Session()
+SESSION.mount('http://', ADAPTER)
+SESSION.mount('https://', ADAPTER)
 POOL = Pool(1)
 
 
