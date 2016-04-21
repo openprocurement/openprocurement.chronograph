@@ -191,13 +191,14 @@ class BaseTenderWebTest(BaseWebTest):
                 }
             })
             self.api_db.save(data)
-            response = self.api.patch_json('{}tenders/{}'.format(self.app.app.registry.api_url, self.tender_id), {
-                'data': {
-                    'id': self.tender_id
-                }
-            })
-            self.assertEqual(response.status, '200 OK')
-            self.assertEqual(response.json['data']['status'], 'active.tendering')
+            for _ in range(100):
+                response = self.api.patch_json('{}tenders/{}'.format(self.app.app.registry.api_url, self.tender_id), {
+                    'data': {
+                        'id': self.tender_id
+                    }
+                })
+                if response.json['data']['status'] == 'active.tendering':
+                    break
             self.api.authorization = ('Basic', ('token', ''))
             bids = []
             for i in self.initial_bids:
