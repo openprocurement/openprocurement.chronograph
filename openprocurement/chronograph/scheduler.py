@@ -289,7 +289,7 @@ def resync_tender(request):
         else:
             scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(10, 300)), **check_args)
     if next_sync:
-        scheduler.add_job(push, 'date', run_date=next_sync, timezone=TZ,
+        scheduler.add_job(push, 'date', run_date=next_sync+timedelta(seconds=randint(10, 300)), timezone=TZ,
                           id=tender_id, name="Resync {}".format(tender_id),
                           misfire_grace_time=60 * 60, replace_existing=True,
                           args=[resync_url, None])
@@ -380,9 +380,9 @@ def process_listing(tenders, scheduler, callback_url, db, check=True):
             next_check = parse_date(next_check, TZ).astimezone(TZ)
             recheck_job = scheduler.get_job("recheck_{}".format(tid))
             if next_check < run_date:
-                scheduler.add_job(push, 'date', run_date=run_date, **check_args)
+                scheduler.add_job(push, 'date', run_date=run_date+timedelta(seconds=randint(10, 300)), **check_args)
             elif not recheck_job or recheck_job.next_run_time != next_check:
-                scheduler.add_job(push, 'date', run_date=next_check, **check_args)
+                scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(10, 300)), **check_args)
         if any([
             'shouldStartAfter' in i.get('auctionPeriod', {}) and i['auctionPeriod']['shouldStartAfter'] > i['auctionPeriod'].get('startDate')
             for i in tender.get('lots', [])
@@ -391,7 +391,7 @@ def process_listing(tenders, scheduler, callback_url, db, check=True):
         ):
             resync_job = scheduler.get_job(tid)
             if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
-                scheduler.add_job(push, 'date', run_date=run_date, timezone=TZ,
+                scheduler.add_job(push, 'date', run_date=run_date+timedelta(seconds=randint(10, 300)), timezone=TZ,
                                   id=tid, name="Resync {}".format(tid),
                                   misfire_grace_time=60 * 60,
                                   args=[callback_url + 'resync/' + tid, None],
