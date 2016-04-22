@@ -199,11 +199,15 @@ class TenderTest(BaseTenderWebTest):
                 }
             }
         })
-        response = self.app.get('/recheck/' + self.tender_id)
-        self.assertEqual(response.status, '200 OK')
-        self.assertNotEqual(response.json, None)
-        response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
-        tender = response.json['data']
+        for _ in range(100):
+            response = self.app.get('/recheck/' + self.tender_id)
+            self.assertEqual(response.status, '200 OK')
+            self.assertNotEqual(response.json, None)
+            response = self.api.get(self.app.app.registry.api_url + 'tenders/' + self.tender_id)
+            tender = response.json['data']
+            if response.json['data']['status'] == 'active.tendering':
+                break
+            sleep(0.5)
         self.assertEqual(tender['status'], 'active.tendering')
 
     def test_wait_for_tenderPeriod(self):
@@ -314,7 +318,8 @@ class TenderTest(BaseTenderWebTest):
         self.assertEqual(response.status, '200 OK')
         self.assertIn('jobs', response.json)
         self.assertIn('recheck_{}'.format(self.tender_id), response.json['jobs'])
-        self.assertEqual(parse_date(response.json['jobs']["recheck_{}".format(self.tender_id)]).utctimetuple(), parse_date(tender['tenderPeriod']['endDate']).utctimetuple())
+        self.assertGreaterEqual(parse_date(response.json['jobs']["recheck_{}".format(self.tender_id)]).utctimetuple(), parse_date(tender['tenderPeriod']['endDate']).utctimetuple())
+        self.assertLessEqual(parse_date(response.json['jobs']["recheck_{}".format(self.tender_id)]).utctimetuple(), (parse_date(tender['tenderPeriod']['endDate']) + timedelta(minutes=5)).utctimetuple())
 
     def test_set_auctionPeriod_skip_weekend(self):
         now = datetime.now(TZ)

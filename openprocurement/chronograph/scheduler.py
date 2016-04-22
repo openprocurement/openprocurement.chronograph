@@ -261,7 +261,7 @@ def resync_tender(request):
         if r.status_code == requests.codes.not_found:
             return
         changes = None
-        next_sync = get_now() + timedelta(minutes=1)
+        next_sync = get_now() + timedelta(seconds=randint(60, 300))
     else:
         json = r.json()
         tender = json['data']
@@ -275,7 +275,7 @@ def resync_tender(request):
             if r.status_code != requests.codes.ok:
                 LOGGER.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text),
                              extra=context_unpack(request, {'MESSAGE_ID': 'error_patch_tender'}, {'ERROR_STATUS': r.status_code}))
-                next_sync = get_now() + timedelta(minutes=1)
+                next_sync = get_now() + timedelta(seconds=randint(60, 300))
             elif r.json():
                 if r.json()['data'].get('next_check'):
                     next_check = parse_date(r.json()['data']['next_check'], TZ).astimezone(TZ)
@@ -285,9 +285,9 @@ def resync_tender(request):
                           misfire_grace_time=60 * 60, replace_existing=True,
                           args=[recheck_url, None])
         if next_check < get_now():
-            scheduler.add_job(push, 'date', run_date=get_now(), **check_args)
+            scheduler.add_job(push, 'date', run_date=get_now()+timedelta(seconds=randint(10, 300)), **check_args)
         else:
-            scheduler.add_job(push, 'date', run_date=next_check, **check_args)
+            scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(10, 300)), **check_args)
     if next_sync:
         scheduler.add_job(push, 'date', run_date=next_sync, timezone=TZ,
                           id=tender_id, name="Resync {}".format(tender_id),
@@ -321,9 +321,9 @@ def recheck_tender(request):
                           misfire_grace_time=60 * 60, replace_existing=True,
                           args=[recheck_url, None])
         if next_check < get_now():
-            scheduler.add_job(push, 'date', run_date=get_now(), **check_args)
+            scheduler.add_job(push, 'date', run_date=get_now()+timedelta(seconds=randint(10, 300)), **check_args)
         else:
-            scheduler.add_job(push, 'date', run_date=next_check, **check_args)
+            scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(10, 300)), **check_args)
     return next_check and next_check.isoformat()
 
 

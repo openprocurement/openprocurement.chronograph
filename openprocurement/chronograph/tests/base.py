@@ -9,6 +9,7 @@ from requests.structures import CaseInsensitiveDict
 from requests.utils import get_encoding_from_headers
 from openprocurement.chronograph.scheduler import SESSION
 from openprocurement.api.utils import VERSION
+from time import sleep
 try:
     from openprocurement.api.tests.base import test_tender_data
 except ImportError:
@@ -199,6 +200,8 @@ class BaseTenderWebTest(BaseWebTest):
                 })
                 if response.json['data']['status'] == 'active.tendering':
                     break
+                sleep(0.5)
+            self.assertEqual(response.json['data']['status'], 'active.tendering')
             self.api.authorization = ('Basic', ('token', ''))
             bids = []
             for i in self.initial_bids:

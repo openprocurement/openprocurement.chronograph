@@ -117,7 +117,7 @@ def main(global_config, **settings):
     #}
     job_defaults = {
         'coalesce': False,
-        'max_instances': 5
+        'max_instances': 3
     }
     config.registry.api_url = settings.get('api.url')
     config.registry.callback_url = settings.get('callback.url')
