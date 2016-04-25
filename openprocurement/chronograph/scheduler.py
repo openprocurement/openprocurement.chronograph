@@ -26,6 +26,9 @@ MIN_PAUSE = timedelta(minutes=3)
 BIDDER_TIME = timedelta(minutes=6)
 SERVICE_TIME = timedelta(minutes=9)
 STAND_STILL_TIME = timedelta(days=1)
+SMOOTHING_MIN = 10
+SMOOTHING_REMIN = 60
+SMOOTHING_MAX = 300  # value should be greater than SMOOTHING_MIN and SMOOTHING_REMIN
 ADAPTER = requests.adapters.HTTPAdapter(pool_connections=3, pool_maxsize=3)
 SESSION = requests.Session()
 SESSION.mount('http://', ADAPTER)
@@ -261,7 +264,7 @@ def resync_tender(request):
         if r.status_code == requests.codes.not_found:
             return
         changes = None
-        next_sync = get_now() + timedelta(seconds=randint(60, 300))
+        next_sync = get_now() + timedelta(seconds=randint(SMOOTHING_REMIN, SMOOTHING_MAX))
     else:
         json = r.json()
         tender = json['data']
@@ -275,7 +278,7 @@ def resync_tender(request):
             if r.status_code != requests.codes.ok:
                 LOGGER.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text),
                              extra=context_unpack(request, {'MESSAGE_ID': 'error_patch_tender'}, {'ERROR_STATUS': r.status_code}))
-                next_sync = get_now() + timedelta(seconds=randint(60, 300))
+                next_sync = get_now() + timedelta(seconds=randint(SMOOTHING_REMIN, SMOOTHING_MAX))
             elif r.json():
                 if r.json()['data'].get('next_check'):
                     next_check = parse_date(r.json()['data']['next_check'], TZ).astimezone(TZ)
@@ -285,11 +288,11 @@ def resync_tender(request):
                           misfire_grace_time=60 * 60, replace_existing=True,
                           args=[recheck_url, None])
         if next_check < get_now():
-            scheduler.add_job(push, 'date', run_date=get_now()+timedelta(seconds=randint(10, 300)), **check_args)
+            scheduler.add_job(push, 'date', run_date=get_now()+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), **check_args)
         else:
-            scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(10, 300)), **check_args)
+            scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), **check_args)
     if next_sync:
-        scheduler.add_job(push, 'date', run_date=next_sync+timedelta(seconds=randint(10, 300)), timezone=TZ,
+        scheduler.add_job(push, 'date', run_date=next_sync+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), timezone=TZ,
                           id=tender_id, name="Resync {}".format(tender_id),
                           misfire_grace_time=60 * 60, replace_existing=True,
                           args=[resync_url, None])
@@ -321,9 +324,9 @@ def recheck_tender(request):
                           misfire_grace_time=60 * 60, replace_existing=True,
                           args=[recheck_url, None])
         if next_check < get_now():
-            scheduler.add_job(push, 'date', run_date=get_now()+timedelta(seconds=randint(10, 300)), **check_args)
+            scheduler.add_job(push, 'date', run_date=get_now()+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), **check_args)
         else:
-            scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(10, 300)), **check_args)
+            scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), **check_args)
     return next_check and next_check.isoformat()
 
 
@@ -380,9 +383,9 @@ def process_listing(tenders, scheduler, callback_url, db, check=True):
             next_check = parse_date(next_check, TZ).astimezone(TZ)
             recheck_job = scheduler.get_job("recheck_{}".format(tid))
             if next_check < run_date:
-                scheduler.add_job(push, 'date', run_date=run_date+timedelta(seconds=randint(10, 300)), **check_args)
+                scheduler.add_job(push, 'date', run_date=run_date+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), **check_args)
             elif not recheck_job or recheck_job.next_run_time != next_check:
-                scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(10, 300)), **check_args)
+                scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), **check_args)
         if any([
             'shouldStartAfter' in i.get('auctionPeriod', {}) and i['auctionPeriod']['shouldStartAfter'] > i['auctionPeriod'].get('startDate')
             for i in tender.get('lots', [])
@@ -391,7 +394,7 @@ def process_listing(tenders, scheduler, callback_url, db, check=True):
         ):
             resync_job = scheduler.get_job(tid)
             if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
-                scheduler.add_job(push, 'date', run_date=run_date+timedelta(seconds=randint(10, 300)), timezone=TZ,
+                scheduler.add_job(push, 'date', run_date=run_date+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), timezone=TZ,
                                   id=tid, name="Resync {}".format(tid),
                                   misfire_grace_time=60 * 60,
                                   args=[callback_url + 'resync/' + tid, None],
