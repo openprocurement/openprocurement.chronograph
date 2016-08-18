@@ -11,7 +11,7 @@ from openprocurement.chronograph.scheduler import SESSION
 from openprocurement.api.utils import VERSION
 from time import sleep
 try:
-    from openprocurement.api.tests.base import test_auction_data
+    from openprocurement.auctions.flash.tests.base import test_auction_data
 except ImportError:
     now = datetime.now()
     test_auction_data = {
@@ -47,8 +47,8 @@ except ImportError:
             {
                 "description": u"футляри до державних нагород",
                 "classification": {
-                    "scheme": u"CPV",
-                    "id": u"44617100-9",
+                    "scheme": u"CAV",
+                    "id": u"70122000-2",
                     "description": u"Cartons"
                 },
                 "additionalClassifications": [

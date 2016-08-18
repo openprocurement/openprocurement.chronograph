@@ -25,6 +25,7 @@ requires = [
 
 test_requires = requires + [
     'openprocurement.api',
+    'openprocurement.auctions.flash',
     'webtest',
 ]
 

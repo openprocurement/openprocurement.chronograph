@@ -11,7 +11,7 @@ from openprocurement.chronograph.scheduler import planning_auction, free_slot
 from openprocurement.chronograph.tests.base import BaseWebTest, BaseAuctionWebTest, test_auction_data
 
 try:
-    from openprocurement.api.tests.base import test_bids
+    from openprocurement.auctions.flash.tests.base import test_bids
 except ImportError:
     test_bids = [
         {
@@ -37,7 +37,7 @@ except ImportError:
     ]
 
 try:
-    from openprocurement.api.tests.base import test_lots
+    from openprocurement.auctions.flash.tests.base import test_lots
 except ImportError:
     test_lots = [
         {

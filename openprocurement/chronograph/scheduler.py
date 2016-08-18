@@ -349,7 +349,7 @@ def free_slot(db, plan_id, plan_time, auction_id):
             done = True
 
 
-def check_auction(db, auction):
+def check_inner_auction(db, auction):
     auction_time = auction.get('auctionPeriod', {}).get('startDate') and parse_date(auction.get('auctionPeriod', {}).get('startDate'))
     lots = dict([
         (i['id'], parse_date(i.get('auctionPeriod', {}).get('startDate')))
@@ -372,7 +372,7 @@ def process_listing(auctions, scheduler, callback_url, db, check=True):
     run_date = get_now()
     for auction in auctions:
         if check:
-            check_auction(db, auction)
+            check_inner_auction(db, auction)
         tid = auction['id']
         next_check = auction.get('next_check')
         if next_check:
