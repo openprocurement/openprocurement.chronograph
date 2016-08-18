@@ -8,7 +8,7 @@ from iso8601 import parse_date
 from json import dumps
 from logging import getLogger
 from openprocurement.chronograph.utils import context_unpack
-from openprocurement.chronograph.design import plan_tenders_view
+from openprocurement.chronograph.design import plan_auctions_view
 from os import environ
 from pytz import timezone
 from random import randint
@@ -82,13 +82,13 @@ def get_date(db, mode, date):
     return plan_date.time(), plan.get('streams', 1), plan
 
 
-def set_date(db, plan, end_time, cur_stream, tender_id, start_time, new_slot=True):
+def set_date(db, plan, end_time, cur_stream, auction_id, start_time, new_slot=True):
     if new_slot:
         plan['time'] = end_time.isoformat()
         plan['streams'] = cur_stream
     stream_id = 'stream_{}'.format(cur_stream)
     stream = plan.get(stream_id, {})
-    stream[start_time.isoformat()] = tender_id
+    stream[start_time.isoformat()] = auction_id
     plan[stream_id] = stream
     db.save(plan)
 
@@ -112,9 +112,9 @@ def find_free_slot(plan):
                 return plan_date, cur_stream
 
 
-def planning_auction(tender, start, db, quick=False, lot_id=None):
-    tid = tender.get('id', '')
-    mode = tender.get('mode', '')
+def planning_auction(auction, start, db, quick=False, lot_id=None):
+    tid = auction.get('id', '')
+    mode = auction.get('mode', '')
     calendar = get_calendar(db)
     streams = get_streams(db)
     skipped_days = 0
@@ -145,7 +145,7 @@ def planning_auction(tender, start, db, quick=False, lot_id=None):
             stream += 1
             dayStart = WORKING_DAY_START
         start = TZ.localize(datetime.combine(nextDate, dayStart))
-        # end = calc_auction_end_time(tender.get('numberOfBids', len(tender.get('bids', []))), start)
+        # end = calc_auction_end_time(auction.get('numberOfBids', len(auction.get('bids', []))), start)
         end = start + timedelta(minutes=30)
         if dayStart == WORKING_DAY_START and end > TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)):
             break
@@ -168,29 +168,29 @@ def skipped_days(days):
     return days_str
 
 
-def check_tender(request, tender, db):
+def check_auction(request, auction, db):
     now = get_now()
-    quick = environ.get('SANDBOX_MODE', False) and u'quick' in tender.get('submissionMethodDetails', '')
-    if not tender.get('lots') and 'shouldStartAfter' in tender.get('auctionPeriod', {}) and tender['auctionPeriod']['shouldStartAfter'] > tender['auctionPeriod'].get('startDate'):
-        period = tender.get('auctionPeriod')
+    quick = environ.get('SANDBOX_MODE', False) and u'quick' in auction.get('submissionMethodDetails', '')
+    if not auction.get('lots') and 'shouldStartAfter' in auction.get('auctionPeriod', {}) and auction['auctionPeriod']['shouldStartAfter'] > auction['auctionPeriod'].get('startDate'):
+        period = auction.get('auctionPeriod')
         shouldStartAfter = max(parse_date(period.get('shouldStartAfter'), TZ).astimezone(TZ), now)
         planned = False
         while not planned:
             try:
-                auctionPeriod, stream, skip_days = planning_auction(tender, shouldStartAfter, db, quick)
+                auctionPeriod, stream, skip_days = planning_auction(auction, shouldStartAfter, db, quick)
                 planned = True
             except ResourceConflict:
                 planned = False
         auctionPeriod = randomize(auctionPeriod).isoformat()
         planned = 'replanned' if period.get('startDate') else 'planned'
-        LOGGER.info('{} auction for tender {} to {}. Stream {}.{}'.format(planned.title(), tender['id'], auctionPeriod, stream, skipped_days(skip_days)),
+        LOGGER.info('{} auction for auction {} to {}. Stream {}.{}'.format(planned.title(), auction['id'], auctionPeriod, stream, skipped_days(skip_days)),
                     extra=context_unpack(request,
-                                         {'MESSAGE_ID': '{}_auction_tender'.format(planned)},
+                                         {'MESSAGE_ID': '{}_auction_auction'.format(planned)},
                                          {'PLANNED_DATE': auctionPeriod, 'PLANNED_STREAM': stream, 'PLANNED_DAYS_SKIPPED': skip_days}))
         return {'auctionPeriod': {'startDate': auctionPeriod}}
-    elif tender.get('lots'):
+    elif auction.get('lots'):
         lots = []
-        for lot in tender.get('lots', []):
+        for lot in auction.get('lots', []):
             if lot['status'] != 'active' or 'shouldStartAfter' not in lot.get('auctionPeriod', {}) or lot['auctionPeriod']['shouldStartAfter'] < lot['auctionPeriod'].get('startDate'):
                 lots.append({})
                 continue
@@ -200,14 +200,14 @@ def check_tender(request, tender, db):
             planned = False
             while not planned:
                 try:
-                    auctionPeriod, stream, skip_days = planning_auction(tender, shouldStartAfter, db, quick, lot_id)
+                    auctionPeriod, stream, skip_days = planning_auction(auction, shouldStartAfter, db, quick, lot_id)
                     planned = True
                 except ResourceConflict:
                     planned = False
             auctionPeriod = randomize(auctionPeriod).isoformat()
             planned = 'replanned' if period.get('startDate') else 'planned'
             lots.append({'auctionPeriod': {'startDate': auctionPeriod}})
-            LOGGER.info('{} auction for lot {} of tender {} to {}. Stream {}.{}'.format(planned.title(), lot_id, tender['id'], auctionPeriod, stream, skipped_days(skip_days)),
+            LOGGER.info('{} auction for lot {} of auction {} to {}. Stream {}.{}'.format(planned.title(), lot_id, auction['id'], auctionPeriod, stream, skipped_days(skip_days)),
                         extra=context_unpack(request,
                                              {'MESSAGE_ID': '{}_auction_lot'.format(planned)},
                                              {'PLANNED_DATE': auctionPeriod, 'PLANNED_STREAM': stream, 'PLANNED_DAYS_SKIPPED': skip_days, 'LOT_ID': lot_id}))
@@ -246,29 +246,29 @@ def push(url, params):
         tx, ty = ty, tx + ty
 
 
-def resync_tender(request):
-    tender_id = request.matchdict['tender_id']
+def resync_auction(request):
+    auction_id = request.matchdict['auction_id']
     scheduler = request.registry.scheduler
-    url = request.registry.api_url + 'tenders/' + tender_id
+    url = request.registry.api_url + 'auctions/' + auction_id
     api_token = request.registry.api_token
-    resync_url = request.registry.callback_url + 'resync/' + tender_id
-    recheck_url = request.registry.callback_url + 'recheck/' + tender_id
+    resync_url = request.registry.callback_url + 'resync/' + auction_id
+    recheck_url = request.registry.callback_url + 'recheck/' + auction_id
     db = request.registry.db
     request_id = request.environ.get('REQUEST_ID', '')
     next_check = None
     next_sync = None
     r = get_request(url, auth=(api_token, ''), headers={'X-Client-Request-ID': request_id})
     if r.status_code != requests.codes.ok:
-        LOGGER.error("Error {} on getting tender '{}': {}".format(r.status_code, url, r.text),
-                     extra=context_unpack(request, {'MESSAGE_ID': 'error_get_tender'}, {'ERROR_STATUS': r.status_code}))
+        LOGGER.error("Error {} on getting auction '{}': {}".format(r.status_code, url, r.text),
+                     extra=context_unpack(request, {'MESSAGE_ID': 'error_get_auction'}, {'ERROR_STATUS': r.status_code}))
         if r.status_code == requests.codes.not_found:
             return
         changes = None
         next_sync = get_now() + timedelta(seconds=randint(SMOOTHING_REMIN, SMOOTHING_MAX))
     else:
         json = r.json()
-        tender = json['data']
-        changes = check_tender(request, tender, db)
+        auction = json['data']
+        changes = check_auction(request, auction, db)
         if changes:
             data = dumps({'data': changes})
             r = SESSION.patch(url,
@@ -276,15 +276,15 @@ def resync_tender(request):
                               headers={'Content-Type': 'application/json', 'X-Client-Request-ID': request_id},
                               auth=(api_token, ''))
             if r.status_code != requests.codes.ok:
-                LOGGER.error("Error {} on updating tender '{}' with '{}': {}".format(r.status_code, url, data, r.text),
-                             extra=context_unpack(request, {'MESSAGE_ID': 'error_patch_tender'}, {'ERROR_STATUS': r.status_code}))
+                LOGGER.error("Error {} on updating auction '{}' with '{}': {}".format(r.status_code, url, data, r.text),
+                             extra=context_unpack(request, {'MESSAGE_ID': 'error_patch_auction'}, {'ERROR_STATUS': r.status_code}))
                 next_sync = get_now() + timedelta(seconds=randint(SMOOTHING_REMIN, SMOOTHING_MAX))
             elif r.json():
                 if r.json()['data'].get('next_check'):
                     next_check = parse_date(r.json()['data']['next_check'], TZ).astimezone(TZ)
     if next_check:
-        check_args = dict(timezone=TZ, id="recheck_{}".format(tender_id),
-                          name="Recheck {}".format(tender_id),
+        check_args = dict(timezone=TZ, id="recheck_{}".format(auction_id),
+                          name="Recheck {}".format(auction_id),
                           misfire_grace_time=60 * 60, replace_existing=True,
                           args=[recheck_url, None])
         if next_check < get_now():
@@ -293,34 +293,34 @@ def resync_tender(request):
             scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), **check_args)
     if next_sync:
         scheduler.add_job(push, 'date', run_date=next_sync+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), timezone=TZ,
-                          id=tender_id, name="Resync {}".format(tender_id),
+                          id=auction_id, name="Resync {}".format(auction_id),
                           misfire_grace_time=60 * 60, replace_existing=True,
                           args=[resync_url, None])
     return next_sync and next_sync.isoformat()
 
 
-def recheck_tender(request):
-    tender_id = request.matchdict['tender_id']
+def recheck_auction(request):
+    auction_id = request.matchdict['auction_id']
     scheduler = request.registry.scheduler
-    url = request.registry.api_url + 'tenders/' + tender_id
+    url = request.registry.api_url + 'auctions/' + auction_id
     api_token = request.registry.api_token
-    recheck_url = request.registry.callback_url + 'recheck/' + tender_id
+    recheck_url = request.registry.callback_url + 'recheck/' + auction_id
     request_id = request.environ.get('REQUEST_ID', '')
     next_check = None
     r = SESSION.patch(url,
-                      data=dumps({'data': {'id': tender_id}}),
+                      data=dumps({'data': {'id': auction_id}}),
                       headers={'Content-Type': 'application/json', 'X-Client-Request-ID': request_id},
                       auth=(api_token, ''))
     if r.status_code != requests.codes.ok:
-        LOGGER.error("Error {} on checking tender '{}': {}".format(r.status_code, url, r.text),
-                     extra=context_unpack(request, {'MESSAGE_ID': 'error_check_tender'}, {'ERROR_STATUS': r.status_code}))
+        LOGGER.error("Error {} on checking auction '{}': {}".format(r.status_code, url, r.text),
+                     extra=context_unpack(request, {'MESSAGE_ID': 'error_check_auction'}, {'ERROR_STATUS': r.status_code}))
         if r.status_code not in [requests.codes.forbidden, requests.codes.not_found]:
             next_check = get_now() + timedelta(minutes=1)
     elif r.json() and r.json()['data'].get('next_check'):
         next_check = parse_date(r.json()['data']['next_check'], TZ).astimezone(TZ)
     if next_check:
-        check_args = dict(timezone=TZ, id="recheck_{}".format(tender_id),
-                          name="Recheck {}".format(tender_id),
+        check_args = dict(timezone=TZ, id="recheck_{}".format(auction_id),
+                          name="Recheck {}".format(auction_id),
                           misfire_grace_time=60 * 60, replace_existing=True,
                           args=[recheck_url, None])
         if next_check < get_now():
@@ -330,7 +330,7 @@ def recheck_tender(request):
     return next_check and next_check.isoformat()
 
 
-def free_slot(db, plan_id, plan_time, tender_id):
+def free_slot(db, plan_id, plan_time, auction_id):
     slot = plan_time.time().isoformat()
     done = False
     while not done:
@@ -339,7 +339,7 @@ def free_slot(db, plan_id, plan_time, tender_id):
             streams = plan['streams']
             for cur_stream in range(1, streams + 1):
                 stream_id = 'stream_{}'.format(cur_stream)
-                if plan[stream_id].get(slot) == tender_id:
+                if plan[stream_id].get(slot) == auction_id:
                     plan[stream_id][slot] = None
             db.save(plan)
             done = True
@@ -349,32 +349,32 @@ def free_slot(db, plan_id, plan_time, tender_id):
             done = True
 
 
-def check_auction(db, tender):
-    auction_time = tender.get('auctionPeriod', {}).get('startDate') and parse_date(tender.get('auctionPeriod', {}).get('startDate'))
+def check_auction(db, auction):
+    auction_time = auction.get('auctionPeriod', {}).get('startDate') and parse_date(auction.get('auctionPeriod', {}).get('startDate'))
     lots = dict([
         (i['id'], parse_date(i.get('auctionPeriod', {}).get('startDate')))
-        for i in tender.get('lots', [])
+        for i in auction.get('lots', [])
         if i.get('auctionPeriod', {}).get('startDate')
     ])
     auc_dict = dict([
         (x.key[1], (TZ.localize(parse_date(x.value, None)), x.id))
-        for x in plan_tenders_view(db, startkey=[tender['id'], None], endkey=[tender['id'], 32 * "f"])
+        for x in plan_auctions_view(db, startkey=[auction['id'], None], endkey=[auction['id'], 32 * "f"])
     ])
     for key in auc_dict:
         plan_time, plan_doc  = auc_dict.get(key)
         if not key and (not auction_time or not plan_time < auction_time < plan_time + timedelta(minutes=30)):
-            free_slot(db, plan_doc, plan_time, tender['id'])
+            free_slot(db, plan_doc, plan_time, auction['id'])
         elif key and (not lots.get(key) or lots.get(key) and not plan_time < lots.get(key) < plan_time + timedelta(minutes=30)):
-            free_slot(db, plan_doc, plan_time, "_".join([tender['id'], key]))
+            free_slot(db, plan_doc, plan_time, "_".join([auction['id'], key]))
 
 
-def process_listing(tenders, scheduler, callback_url, db, check=True):
+def process_listing(auctions, scheduler, callback_url, db, check=True):
     run_date = get_now()
-    for tender in tenders:
+    for auction in auctions:
         if check:
-            check_auction(db, tender)
-        tid = tender['id']
-        next_check = tender.get('next_check')
+            check_auction(db, auction)
+        tid = auction['id']
+        next_check = auction.get('next_check')
         if next_check:
             check_args = dict(timezone=TZ, id="recheck_{}".format(tid),
                               name="Recheck {}".format(tid),
@@ -388,9 +388,9 @@ def process_listing(tenders, scheduler, callback_url, db, check=True):
                 scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), **check_args)
         if any([
             'shouldStartAfter' in i.get('auctionPeriod', {}) and i['auctionPeriod']['shouldStartAfter'] > i['auctionPeriod'].get('startDate')
-            for i in tender.get('lots', [])
+            for i in auction.get('lots', [])
         ]) or (
-            'shouldStartAfter' in tender.get('auctionPeriod', {}) and tender['auctionPeriod']['shouldStartAfter'] > tender['auctionPeriod'].get('startDate')
+            'shouldStartAfter' in auction.get('auctionPeriod', {}) and auction['auctionPeriod']['shouldStartAfter'] > auction['auctionPeriod'].get('startDate')
         ):
             resync_job = scheduler.get_job(tid)
             if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
@@ -401,10 +401,10 @@ def process_listing(tenders, scheduler, callback_url, db, check=True):
                                   replace_existing=True)
 
 
-def resync_tenders(request):
+def resync_auctions(request):
     next_url = request.params.get('url', '')
     if not next_url or 'opt_fields=status%2CauctionPeriod%2Clots%2Cnext_check' not in next_url:
-        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2Clots%2Cnext_check'
+        next_url = request.registry.api_url + 'auctions?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2Clots%2Cnext_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
@@ -443,10 +443,10 @@ def resync_tenders(request):
     return next_url
 
 
-def resync_tenders_back(request):
+def resync_auctions_back(request):
     next_url = request.params.get('url', '')
     if not next_url:
-        next_url = request.registry.api_url + 'tenders?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2Clots%2Cnext_check'
+        next_url = request.registry.api_url + 'auctions?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2Clots%2Cnext_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url

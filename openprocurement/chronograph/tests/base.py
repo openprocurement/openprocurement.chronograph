@@ -11,10 +11,10 @@ from openprocurement.chronograph.scheduler import SESSION
 from openprocurement.api.utils import VERSION
 from time import sleep
 try:
-    from openprocurement.api.tests.base import test_tender_data
+    from openprocurement.api.tests.base import test_auction_data
 except ImportError:
     now = datetime.now()
-    test_tender_data = {
+    test_auction_data = {
         "title": u"футляри до державних нагород",
         "procuringEntity": {
             "name": u"Державне управління справами",
@@ -146,41 +146,41 @@ class BaseWebTest(unittest.TestCase):
         del self.couchdb_server[self.db.name]
 
 
-class BaseTenderWebTest(BaseWebTest):
-    initial_data = test_tender_data
+class BaseAuctionWebTest(BaseWebTest):
+    initial_data = test_auction_data
     initial_bids = None
     initial_lots = None
     sandbox = False
 
     def setUp(self):
-        super(BaseTenderWebTest, self).setUp()
+        super(BaseAuctionWebTest, self).setUp()
         if self.sandbox:
             os.environ['SANDBOX_MODE'] = "True"
-        # Create tender
+        # Create auction
         self.api.authorization = ('Basic', ('token', ''))
-        response = self.api.post_json('{}tenders'.format(self.app.app.registry.api_url), {'data': self.initial_data})
-        tender = response.json['data']
-        self.tender_id = tender['id']
+        response = self.api.post_json('{}auctions'.format(self.app.app.registry.api_url), {'data': self.initial_data})
+        auction = response.json['data']
+        self.auction_id = auction['id']
         if self.initial_lots:
             lots = []
             for i in self.initial_lots:
-                response = self.api.post_json('{}tenders/{}/lots'.format(self.app.app.registry.api_url, self.tender_id), {'data': i})
+                response = self.api.post_json('{}auctions/{}/lots'.format(self.app.app.registry.api_url, self.auction_id), {'data': i})
                 self.assertEqual(response.status, '201 Created')
                 lots.append(response.json['data'])
             self.initial_lots = lots
-            response = self.api.patch_json('{}tenders/{}'.format(self.app.app.registry.api_url, self.tender_id), {"data": {
+            response = self.api.patch_json('{}auctions/{}'.format(self.app.app.registry.api_url, self.auction_id), {"data": {
                 "items": [
                     {
                         'relatedLot': lots[i % len(lots)]['id']
                     }
-                    for i in xrange(len(tender['items']))
+                    for i in xrange(len(auction['items']))
                 ]
             }})
             self.assertEqual(response.status, '200 OK')
         if self.initial_bids:
             self.api.authorization = ('Basic', ('chronograph', ''))
             now = datetime.now()
-            data = self.api_db.get(self.tender_id)
+            data = self.api_db.get(self.auction_id)
             data.update({
                 "enquiryPeriod": {
                     "startDate": now.isoformat(),
@@ -193,9 +193,9 @@ class BaseTenderWebTest(BaseWebTest):
             })
             self.api_db.save(data)
             for _ in range(100):
-                response = self.api.patch_json('{}tenders/{}'.format(self.app.app.registry.api_url, self.tender_id), {
+                response = self.api.patch_json('{}auctions/{}'.format(self.app.app.registry.api_url, self.auction_id), {
                     'data': {
-                        'id': self.tender_id
+                        'id': self.auction_id
                     }
                 })
                 if response.json['data']['status'] == 'active.tendering':
@@ -215,14 +215,14 @@ class BaseTenderWebTest(BaseWebTest):
                         }
                         for lot in self.initial_lots
                     ]
-                response = self.api.post_json(self.app.app.registry.api_url + 'tenders/' + self.tender_id + '/bids', {'data': i})
+                response = self.api.post_json(self.app.app.registry.api_url + 'auctions/' + self.auction_id + '/bids', {'data': i})
                 bids.append(response.json['data'])
             self.initial_bids = bids
-            data = self.api_db.get(self.tender_id)
+            data = self.api_db.get(self.auction_id)
             data.update({
                 'status': 'active.tendering',
-                "enquiryPeriod": tender["enquiryPeriod"],
-                "tenderPeriod": tender["tenderPeriod"]
+                "enquiryPeriod": auction["enquiryPeriod"],
+                "tenderPeriod": auction["tenderPeriod"]
             })
             self.api_db.save(data)
             self.api.authorization = ('Basic', ('token', ''))
@@ -230,5 +230,5 @@ class BaseTenderWebTest(BaseWebTest):
     def tearDown(self):
         if self.sandbox:
             os.environ.pop('SANDBOX_MODE')
-        #del self.api_db[self.tender_id]
-        super(BaseTenderWebTest, self).tearDown()
+        #del self.api_db[self.auction_id]
+        super(BaseAuctionWebTest, self).tearDown()

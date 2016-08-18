@@ -7,7 +7,7 @@ def sync_design(db):
     ViewDefinition.sync_many(db, views)
 
 
-plan_tenders_view = ViewDefinition('plan', 'tenders', '''function(doc) {
+plan_auctions_view = ViewDefinition('plan', 'auctions', '''function(doc) {
     if(doc.streams) {
         for (var i in doc) {
             if (i.indexOf('stream_') == 0) {

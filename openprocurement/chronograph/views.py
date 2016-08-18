@@ -3,10 +3,10 @@ from openprocurement.chronograph.scheduler import (
     delete_holiday,
     get_calendar,
     get_streams,
-    recheck_tender,
-    resync_tender,
-    resync_tenders,
-    resync_tenders_back,
+    recheck_auction,
+    resync_auction,
+    resync_auctions,
+    resync_auctions_back,
     set_holiday,
     set_streams,
 )
@@ -22,22 +22,22 @@ def home_view(request):
 
 @view_config(route_name='resync_all', renderer='json')
 def resync_all(request):
-    return resync_tenders(request)
+    return resync_auctions(request)
 
 
 @view_config(route_name='resync_back', renderer='json')
 def resync_back(request):
-    return resync_tenders_back(request)
+    return resync_auctions_back(request)
 
 
 @view_config(route_name='resync', renderer='json')
 def resync(request):
-    return resync_tender(request)
+    return resync_auction(request)
 
 
 @view_config(route_name='recheck', renderer='json')
 def recheck(request):
-    return recheck_tender(request)
+    return recheck_auction(request)
 
 
 @view_config(route_name='calendar', renderer='json')
