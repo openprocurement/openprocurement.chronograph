@@ -411,7 +411,7 @@ class TenderTest(BaseTenderWebTest):
                 },
                 'tenderPeriod': {
                     'startDate': now.isoformat(),
-                    'endDate': (now + timedelta(days=7 - now.weekday())).replace(hour=1).isoformat()
+                    'endDate': (now + timedelta(days=7 - now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
                 }
             }
         })
