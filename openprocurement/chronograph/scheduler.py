@@ -387,10 +387,10 @@ def process_listing(tenders, scheduler, callback_url, db, check=True):
             elif not recheck_job or recheck_job.next_run_time != next_check:
                 scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), **check_args)
         if any([
-            'shouldStartAfter' in i.get('auctionPeriod', {}) and i['auctionPeriod']['shouldStartAfter'] > i['auctionPeriod'].get('startDate')
+            'shouldStartAfter' in i.get('auctionPeriod', {}) and parse_date(i['auctionPeriod']['shouldStartAfter'], TZ).astimezone(TZ) > parse_date(i['auctionPeriod'].get('startDate', '0001'), TZ)
             for i in tender.get('lots', [])
         ]) or (
-            'shouldStartAfter' in tender.get('auctionPeriod', {}) and tender['auctionPeriod']['shouldStartAfter'] > tender['auctionPeriod'].get('startDate')
+            'shouldStartAfter' in tender.get('auctionPeriod', {}) and parse_date(tender['auctionPeriod']['shouldStartAfter'], TZ).astimezone(TZ) > parse_date(tender['auctionPeriod'].get('startDate', '0001'), TZ)
         ):
             resync_job = scheduler.get_job(tid)
             if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
