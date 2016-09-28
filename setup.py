@@ -30,7 +30,7 @@ test_requires = requires + [
 ]
 
 setup(name='openprocurement.chronograph',
-      version='0.6.5',
+      version='0.6.5+ea',
       description='openprocurement.chronograph',
       long_description=README + '\n\n' + CHANGES,
       classifiers=[
