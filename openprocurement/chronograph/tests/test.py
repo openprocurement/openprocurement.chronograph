@@ -177,7 +177,7 @@ class TenderTest(BaseTenderWebTest):
                     "endDate": datetime.now(TZ).isoformat()
                 },
                 'tenderPeriod': {
-                    'startDate': None
+                    'startDate': datetime.now(TZ).isoformat()
                 }
             }
         })
