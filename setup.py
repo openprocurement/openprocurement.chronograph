@@ -33,7 +33,7 @@ entry_points = {
         'main = openprocurement.chronograph:main'
     ],
     'console_scripts': [
-        'bootstrap_chronograph_security = openprocurement.api.database:bootstrap_chronograph_security'
+        'bootstrap_chronograph_security = openprocurement.chronograph.database:bootstrap_chronograph_security'
     ]
 }
 
