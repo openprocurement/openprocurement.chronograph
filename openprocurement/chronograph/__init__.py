@@ -2,38 +2,21 @@ import gevent.monkey
 gevent.monkey.patch_all()
 import os
 from logging import getLogger
-#from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
+# from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.gevent import GeventScheduler as Scheduler
-from couchdb import Server, Session
-from couchdb.http import Unauthorized, extract_credentials
 from datetime import datetime, timedelta
-#from openprocurement.chronograph.jobstores import CouchDBJobStore
-from openprocurement.chronograph.design import sync_design
+# from openprocurement.chronograph.jobstores import CouchDBJobStore
+from openprocurement.chronograph.database import set_chronograph_security
 from openprocurement.chronograph.scheduler import push
 from openprocurement.chronograph.utils import add_logging_context
 from pyramid.config import Configurator
 from pytz import timezone
 from pyramid.events import ApplicationCreated, ContextFound
-from pbkdf2 import PBKDF2
 
 LOGGER = getLogger(__name__)
 
 TZ = timezone(os.environ['TZ'] if 'TZ' in os.environ else 'Europe/Kiev')
-SECURITY = {u'admins': {u'names': [], u'roles': ['_admin']}, u'members': {u'names': [], u'roles': ['_admin']}}
-VALIDATE_DOC_ID = '_design/_auth'
-VALIDATE_DOC_UPDATE = """function(newDoc, oldDoc, userCtx){
-    if(newDoc._deleted) {
-        throw({forbidden: 'Not authorized to delete this document'});
-    }
-    if(userCtx.roles.indexOf('_admin') !== -1 && newDoc.indexOf('_design/') === 0) {
-        return;
-    }
-    if(userCtx.name === '%s') {
-        return;
-    } else {
-        throw({forbidden: 'Only authorized user may edit the database'});
-    }
-}"""
+
 
 
 def start_scheduler(event):
@@ -59,53 +42,8 @@ def main(global_config, **settings):
     config.add_subscriber(start_scheduler, ApplicationCreated)
     config.registry.api_token = os.environ.get('API_TOKEN', settings.get('api.token'))
 
-    db_name = os.environ.get('DB_NAME', settings['couchdb.db_name'])
-    server = Server(settings.get('couchdb.url'), session=Session(retry_delays=range(60)))
-    if 'couchdb.admin_url' not in settings and server.resource.credentials:
-        try:
-            server.version()
-        except Unauthorized:
-            server = Server(extract_credentials(settings.get('couchdb.url'))[0], session=Session(retry_delays=range(60)))
+    server, db = set_chronograph_security(settings)
     config.registry.couchdb_server = server
-    if 'couchdb.admin_url' in settings and server.resource.credentials:
-        aserver = Server(settings.get('couchdb.admin_url'), session=Session(retry_delays=range(10)))
-        users_db = aserver['_users']
-        if SECURITY != users_db.security:
-            LOGGER.info("Updating users db security", extra={'MESSAGE_ID': 'update_users_security'})
-            users_db.security = SECURITY
-        username, password = server.resource.credentials
-        user_doc = users_db.get('org.couchdb.user:{}'.format(username), {'_id': 'org.couchdb.user:{}'.format(username)})
-        if not user_doc.get('derived_key', '') or PBKDF2(password, user_doc.get('salt', ''), user_doc.get('iterations', 10)).hexread(int(len(user_doc.get('derived_key', '')) / 2)) != user_doc.get('derived_key', ''):
-            user_doc.update({
-                "name": username,
-                "roles": [],
-                "type": "user",
-                "password": password
-            })
-            LOGGER.info("Updating chronograph db main user", extra={'MESSAGE_ID': 'update_chronograph_main_user'})
-            users_db.save(user_doc)
-        security_users = [username, ]
-        if db_name not in aserver:
-            aserver.create(db_name)
-        db = aserver[db_name]
-        SECURITY[u'members'][u'names'] = security_users
-        if SECURITY != db.security:
-            LOGGER.info("Updating chronograph db security", extra={'MESSAGE_ID': 'update_chronograph_security'})
-            db.security = SECURITY
-        auth_doc = db.get(VALIDATE_DOC_ID, {'_id': VALIDATE_DOC_ID})
-        if auth_doc.get('validate_doc_update') != VALIDATE_DOC_UPDATE % username:
-            auth_doc['validate_doc_update'] = VALIDATE_DOC_UPDATE % username
-            LOGGER.info("Updating chronograph db validate doc", extra={'MESSAGE_ID': 'update_chronograph_validate_doc'})
-            db.save(auth_doc)
-        # sync couchdb views
-        sync_design(db)
-        db = server[db_name]
-    else:
-        if db_name not in server:
-            server.create(db_name)
-        db = server[db_name]
-        # sync couchdb views
-        sync_design(db)
     config.registry.db = db
 
     jobstores = {
