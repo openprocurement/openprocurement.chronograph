@@ -11,7 +11,7 @@ from openprocurement.chronograph.scheduler import planning_auction, free_slot
 from openprocurement.chronograph.tests.base import BaseWebTest, BaseTenderWebTest, test_tender_data
 
 try:
-    from openprocurement.api.tests.base import test_bids
+    from openprocurement.tender.belowthreshold.tests.base import test_bids
 except ImportError:
     test_bids = [
         {
@@ -37,7 +37,7 @@ except ImportError:
     ]
 
 try:
-    from openprocurement.api.tests.base import test_lots
+    from openprocurement.tender.belowthreshold.tests.base import test_lots
 except ImportError:
     test_lots = [
         {
@@ -177,7 +177,7 @@ class TenderTest(BaseTenderWebTest):
                     "endDate": datetime.now(TZ).isoformat()
                 },
                 'tenderPeriod': {
-                    'startDate': None
+                    'startDate': datetime.now(TZ).isoformat()
                 }
             }
         })
