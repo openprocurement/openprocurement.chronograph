@@ -261,7 +261,7 @@ def resync_tender(request):
     if r.status_code != requests.codes.ok:
         LOGGER.error("Error {} on getting tender '{}': {}".format(r.status_code, url, r.text),
                      extra=context_unpack(request, {'MESSAGE_ID': 'error_get_tender'}, {'ERROR_STATUS': r.status_code}))
-        if r.status_code == requests.codes.not_found:
+        if r.status_code in [requests.codes.not_found, requests.codes.gone]:
             return
         changes = None
         next_sync = get_now() + timedelta(seconds=randint(SMOOTHING_REMIN, SMOOTHING_MAX))
@@ -314,7 +314,7 @@ def recheck_tender(request):
     if r.status_code != requests.codes.ok:
         LOGGER.error("Error {} on checking tender '{}': {}".format(r.status_code, url, r.text),
                      extra=context_unpack(request, {'MESSAGE_ID': 'error_check_tender'}, {'ERROR_STATUS': r.status_code}))
-        if r.status_code not in [requests.codes.forbidden, requests.codes.not_found]:
+        if r.status_code not in [requests.codes.forbidden, requests.codes.not_found, requests.codes.gone]:
             next_check = get_now() + timedelta(minutes=1)
     elif r.json() and r.json()['data'].get('next_check'):
         next_check = parse_date(r.json()['data']['next_check'], TZ).astimezone(TZ)
@@ -356,12 +356,11 @@ def check_auction(db, tender):
         for i in tender.get('lots', [])
         if i.get('auctionPeriod', {}).get('startDate')
     ])
-    auc_dict = dict([
-        (x.key[1], (TZ.localize(parse_date(x.value, None)), x.id))
+    auc_dict = [
+        (x.key[1], TZ.localize(parse_date(x.value, None)), x.id)
         for x in plan_tenders_view(db, startkey=[tender['id'], None], endkey=[tender['id'], 32 * "f"])
-    ])
-    for key in auc_dict:
-        plan_time, plan_doc  = auc_dict.get(key)
+    ]
+    for key, plan_time, plan_doc in auc_dict:
         if not key and (not auction_time or not plan_time < auction_time < plan_time + timedelta(minutes=30)):
             free_slot(db, plan_doc, plan_time, tender['id'])
         elif key and (not lots.get(key) or lots.get(key) and not plan_time < lots.get(key) < plan_time + timedelta(minutes=30)):
