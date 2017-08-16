@@ -38,7 +38,7 @@ entry_points = {
 }
 
 setup(name='openprocurement.chronograph',
-      version='0.6.5',
+      version='0.7',
       description='openprocurement.chronograph',
       long_description=README + '\n\n' + CHANGES,
       classifiers=[
