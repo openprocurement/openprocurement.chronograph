@@ -2,13 +2,30 @@
 import grequests
 import requests
 from couchdb.http import ResourceConflict
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 from gevent.pool import Pool
 from iso8601 import parse_date
 from json import dumps
 from logging import getLogger
 from openprocurement.chronograph.utils import context_unpack
 from openprocurement.chronograph.design import plan_auctions_view
+from openprocurement.chronograph.constants import (
+    CALENDAR_ID,
+    STREAMS_ID,
+    WORKING_DAY_START,
+    INSIDER_WORKING_DAY_START,
+    WORKING_DAY_END,
+    WORKING_DAY_DURATION,
+    ROUNDING,
+    MIN_PAUSE,
+    BIDDER_TIME,
+    SERVICE_TIME,
+    SMOOTHING_MIN,
+    SMOOTHING_REMIN,
+    SMOOTHING_MAX,
+    NOT_CLASSIC_AUCTIONS,
+    DEFAULT_STREAMS_DOC
+)
 from os import environ
 from pytz import timezone
 from random import randint
@@ -17,18 +34,7 @@ from time import sleep
 
 LOGGER = getLogger(__name__)
 TZ = timezone(environ['TZ'] if 'TZ' in environ else 'Europe/Kiev')
-CALENDAR_ID = 'calendar'
-STREAMS_ID = 'streams'
-WORKING_DAY_START = time(11, 0)
-WORKING_DAY_END = time(16, 0)
-ROUNDING = timedelta(minutes=15)
-MIN_PAUSE = timedelta(minutes=3)
-BIDDER_TIME = timedelta(minutes=6)
-SERVICE_TIME = timedelta(minutes=9)
-STAND_STILL_TIME = timedelta(days=1)
-SMOOTHING_MIN = 10
-SMOOTHING_REMIN = 60
-SMOOTHING_MAX = 300  # value should be greater than SMOOTHING_MIN and SMOOTHING_REMIN
+
 ADAPTER = requests.adapters.HTTPAdapter(pool_connections=3, pool_maxsize=3)
 SESSION = requests.Session()
 SESSION.mount('http://', ADAPTER)
@@ -63,33 +69,52 @@ def delete_holiday(db, day):
         db.save(calendar)
 
 
-def get_streams(db, streams_id=STREAMS_ID):
-    return db.get(streams_id, {'_id': streams_id, 'streams': 10}).get('streams')
+def get_streams(db, streams_id=STREAMS_ID, classic_auction=True):
+        streams = db.get(streams_id, DEFAULT_STREAMS_DOC)
+        if classic_auction:
+            return streams.get('streams', DEFAULT_STREAMS_DOC['streams'])
+        else:
+            return streams.get('dutch_streams',
+                               DEFAULT_STREAMS_DOC['dutch_streams'])
 
 
-def set_streams(db, streams, streams_id=STREAMS_ID):
-    streams_doc = db.get(streams_id, {'_id': streams_id})
-    streams_doc['streams'] = streams
+def set_streams(db, streams=None, dutch_streams=None, streams_id=STREAMS_ID):
+    streams_doc = db.get(streams_id, DEFAULT_STREAMS_DOC)
+    if streams is not None:
+        streams_doc['streams'] = streams
+    if dutch_streams is not None:
+        streams_doc['dutch_streams'] = dutch_streams
     db.save(streams_doc)
 
 
-def get_date(db, mode, date):
+def get_date(db, mode, date, classic_auction=True):
     plan_id = 'plan{}_{}'.format(mode, date.isoformat())
     plan = db.get(plan_id, {'_id': plan_id})
-    plan_date_end = plan.get('time', WORKING_DAY_START.isoformat())
+    if classic_auction:
+        plan_date_end = plan.get('time', WORKING_DAY_START.isoformat())
+        stream = plan.get('streams', 1)
+    else:
+        plan_date_end = INSIDER_WORKING_DAY_START.isoformat()
+        stream = len(plan.get('dutch_streams', []))
     plan_date = parse_date(date.isoformat() + 'T' + plan_date_end, None)
     plan_date = plan_date.astimezone(TZ) if plan_date.tzinfo else TZ.localize(plan_date)
-    return plan_date.time(), plan.get('streams', 1), plan
+    return plan_date.time(), stream, plan
 
 
-def set_date(db, plan, end_time, cur_stream, auction_id, start_time, new_slot=True):
-    if new_slot:
-        plan['time'] = end_time.isoformat()
-        plan['streams'] = cur_stream
-    stream_id = 'stream_{}'.format(cur_stream)
-    stream = plan.get(stream_id, {})
-    stream[start_time.isoformat()] = auction_id
-    plan[stream_id] = stream
+def set_date(db, plan, end_time, cur_stream, auction_id, start_time,
+             new_slot=True, classic_auction=True):
+    if classic_auction:
+        if new_slot:
+            plan['time'] = end_time.isoformat()
+            plan['streams'] = cur_stream
+        stream_id = 'stream_{}'.format(cur_stream)
+        stream = plan.get(stream_id, {})
+        stream[start_time.isoformat()] = auction_id
+        plan[stream_id] = stream
+    else:
+        dutch_streams = plan.get('dutch_streams', [])
+        dutch_streams.append(auction_id)
+        plan['dutch_streams'] = dutch_streams
     db.save(plan)
 
 
@@ -115,49 +140,56 @@ def find_free_slot(plan):
 def planning_auction(auction, start, db, quick=False, lot_id=None):
     tid = auction.get('id', '')
     mode = auction.get('mode', '')
-    calendar = get_calendar(db)
-    streams = get_streams(db)
+    classic_auction = auction.get('procurementMethodType') not in \
+        NOT_CLASSIC_AUCTIONS
     skipped_days = 0
     if quick:
         quick_start = calc_auction_end_time(0, start)
         return (quick_start, 0, skipped_days)
+    calendar = get_calendar(db)
+    streams = get_streams(db, classic_auction=classic_auction)
     start += timedelta(hours=1)
-    if start.time() < WORKING_DAY_START:
-        nextDate = start.date()
-    else:
+    if classic_auction and start.time() > WORKING_DAY_START:
         nextDate = start.date() + timedelta(days=1)
+    else:
+        nextDate = start.date()
     new_slot = True
     while True:
-        if calendar.get(nextDate.isoformat()) or nextDate.weekday() in [5, 6]:  # skip Saturday and Sunday
+        # skip Saturday and Sunday
+        if calendar.get(nextDate.isoformat()) or nextDate.weekday() in [5, 6]:
             nextDate += timedelta(days=1)
             continue
-        dayStart, stream, plan = get_date(db, mode, nextDate)
-        freeSlot = find_free_slot(plan)
-        if freeSlot:
-            startDate, stream = freeSlot
-            start, end, dayStart, new_slot = startDate, startDate, startDate.time(), False
-            break
-        if dayStart >= WORKING_DAY_END and stream >= streams:
-            nextDate += timedelta(days=1)
-            skipped_days += 1
-            continue
-        if dayStart >= WORKING_DAY_END and stream < streams:
-            stream += 1
-            dayStart = WORKING_DAY_START
-        start = TZ.localize(datetime.combine(nextDate, dayStart))
-        # end = calc_auction_end_time(auction.get('numberOfBids', len(auction.get('bids', []))), start)
-        end = start + timedelta(minutes=30)
-        if dayStart == WORKING_DAY_START and end > TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)):
-            break
-        elif end <= TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)):
-            break
+        dayStart, stream, plan = get_date(db, mode, nextDate,
+                                          classic_auction=classic_auction)
+        if not classic_auction:  # dgfInsider
+            if stream < streams:
+                start = TZ.localize(datetime.combine(nextDate, dayStart))
+                end = start + WORKING_DAY_DURATION
+                break
+        else:                    # classic_auction
+            freeSlot = find_free_slot(plan)
+            if freeSlot:
+                startDate, stream = freeSlot
+                start, end, dayStart, new_slot = startDate, startDate, startDate.time(), False
+                break
+            if dayStart >= WORKING_DAY_END and stream < streams:
+                stream += 1
+                dayStart = WORKING_DAY_START
+
+            start = TZ.localize(datetime.combine(nextDate, dayStart))
+            end = start + timedelta(minutes=30)
+            # end = calc_auction_end_time(auction.get('numberOfBids', len(auction.get('bids', []))), start)
+            if dayStart == WORKING_DAY_START and end > TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)) and stream <= streams:
+                break
+            elif end <= TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)) and stream <= streams:
+                break
         nextDate += timedelta(days=1)
         skipped_days += 1
     #for n in range((end.date() - start.date()).days):
         #date = start.date() + timedelta(n)
         #_, dayStream = get_date(db, mode, date.date())
         #set_date(db, mode, date.date(), WORKING_DAY_END, dayStream+1)
-    set_date(db, plan, end.time(), stream, "_".join([tid, lot_id]) if lot_id else tid, dayStart, new_slot)
+    set_date(db, plan, end.time(), stream, "_".join([tid, lot_id]) if lot_id else tid, dayStart, new_slot, classic_auction)
     return (start, stream, skipped_days)
 
 
@@ -330,17 +362,28 @@ def recheck_auction(request):
     return next_check and next_check.isoformat()
 
 
-def free_slot(db, plan_id, plan_time, auction_id):
+def free_slot(db, plan_id, plan_time, auction_id, classic_auction=True):
     slot = plan_time.time().isoformat()
     done = False
     while not done:
         try:
             plan = db.get(plan_id)
-            streams = plan['streams']
-            for cur_stream in range(1, streams + 1):
-                stream_id = 'stream_{}'.format(cur_stream)
-                if plan[stream_id].get(slot) == auction_id:
-                    plan[stream_id][slot] = None
+            if classic_auction:
+                streams = plan['streams']
+                for cur_stream in range(1, streams + 1):
+                    stream_id = 'stream_{}'.format(cur_stream)
+                    if plan[stream_id].get(slot) == auction_id:
+                        plan[stream_id][slot] = None
+            else:
+                slots = plan.get('dutch_streams', [])
+                pops = []
+                for i in xrange(0, len(slots)):
+                    if slots[i] == auction_id:
+                        pops.append(i)
+                pops.sort(reverse=True)
+                for p in pops:
+                    slots.pop(p)
+                plan['dutch_streams'] = slots
             db.save(plan)
             done = True
         except ResourceConflict:
@@ -350,22 +393,23 @@ def free_slot(db, plan_id, plan_time, auction_id):
 
 
 def check_inner_auction(db, auction):
+    classic_auction = \
+        auction.get('procurementMethodType') not in NOT_CLASSIC_AUCTIONS
     auction_time = auction.get('auctionPeriod', {}).get('startDate') and parse_date(auction.get('auctionPeriod', {}).get('startDate'))
     lots = dict([
         (i['id'], parse_date(i.get('auctionPeriod', {}).get('startDate')))
         for i in auction.get('lots', [])
         if i.get('auctionPeriod', {}).get('startDate')
     ])
-    auc_dict = dict([
+    auc_dict = [
         (x.key[1], (TZ.localize(parse_date(x.value, None)), x.id))
         for x in plan_auctions_view(db, startkey=[auction['id'], None], endkey=[auction['id'], 32 * "f"])
-    ])
-    for key in auc_dict:
-        plan_time, plan_doc  = auc_dict.get(key)
+    ]
+    for key, plan_time, plan_doc in auc_dict:
         if not key and (not auction_time or not plan_time < auction_time < plan_time + timedelta(minutes=30)):
-            free_slot(db, plan_doc, plan_time, auction['id'])
+            free_slot(db, plan_doc, plan_time, auction['id'], classic_auction)
         elif key and (not lots.get(key) or lots.get(key) and not plan_time < lots.get(key) < plan_time + timedelta(minutes=30)):
-            free_slot(db, plan_doc, plan_time, "_".join([auction['id'], key]))
+            free_slot(db, plan_doc, plan_time, "_".join([auction['id'], key]), classic_auction)
 
 
 def process_listing(auctions, scheduler, callback_url, db, check=True):
@@ -403,8 +447,8 @@ def process_listing(auctions, scheduler, callback_url, db, check=True):
 
 def resync_auctions(request):
     next_url = request.params.get('url', '')
-    if not next_url or 'opt_fields=status%2CauctionPeriod%2Clots%2Cnext_check' not in next_url:
-        next_url = request.registry.api_url + 'auctions?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2Clots%2Cnext_check'
+    if not next_url or 'opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check' not in next_url:
+        next_url = request.registry.api_url + 'auctions?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
@@ -446,7 +490,7 @@ def resync_auctions(request):
 def resync_auctions_back(request):
     next_url = request.params.get('url', '')
     if not next_url:
-        next_url = request.registry.api_url + 'auctions?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2Clots%2Cnext_check'
+        next_url = request.registry.api_url + 'auctions?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url

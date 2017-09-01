@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from couchdb.design import ViewDefinition
+from openprocurement.chronograph.constants import INSIDER_WORKING_DAY_START
 
 
 def sync_design(db):
@@ -12,14 +13,23 @@ plan_auctions_view = ViewDefinition('plan', 'auctions', '''function(doc) {
         for (var i in doc) {
             if (i.indexOf('stream_') == 0) {
                 for (var t in doc[i]) {
-                    var x = doc[i][t].split('_')
-                    if (x.length == 2) {
-                        emit(x, doc._id.split('_')[1] + 'T' + t);
-                    } else {
-                        emit([x[0], null], doc._id.split('_')[1] + 'T' + t);
+                    if (doc[i][t]) {
+                        var x = doc[i][t].split('_')
+                        if (x.length == 2) {
+                            emit(x, doc._id.split('_')[1] + 'T' + t);
+                        } else {
+                            emit([x[0], null],
+                                 doc._id.split('_')[1] + 'T' + t);
+                        }
                     }
+                }
+            }
+            if (i.indexOf('dutch_streams') == 0) {
+                for (var aid in doc[i]) {
+                    emit([doc[i][aid], null],
+                          doc._id.split('_')[1] + '{}');
                 }
             }
         };
     }
-}''')
+}'''.format(INSIDER_WORKING_DAY_START.isoformat()))

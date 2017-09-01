@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 from pytz import timezone
-
 TZ = timezone(os.environ['TZ'] if 'TZ' in os.environ else 'Europe/Kiev')
 
 

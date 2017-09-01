@@ -7,7 +7,7 @@ from time import sleep
 from logging import getLogger
 
 from openprocurement.chronograph import TZ
-from openprocurement.chronograph.scheduler import planning_auction, free_slot
+from openprocurement.chronograph.scheduler import planning_auction, free_slot, DEFAULT_STREAMS_DOC
 from openprocurement.chronograph.tests.base import BaseWebTest, BaseAuctionWebTest, test_auction_data
 
 try:
@@ -113,21 +113,60 @@ class SimpleTest(BaseWebTest):
         self.assertEqual(response.json, False)
 
     def test_streams(self):
+        # GET /streams
         response = self.app.get('/streams')
         self.assertEqual(response.status, '200 OK')
-        self.assertEqual(response.json, 10)
+        self.assertEqual(response.json, DEFAULT_STREAMS_DOC['streams'])
+
+        response = self.app.get('/streams?dutch_streams=true')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, DEFAULT_STREAMS_DOC['dutch_streams'])
+
+        # POST /streams
         response = self.app.post('/streams', {'streams': 20})
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, True)
+
+        # GET /streams
         response = self.app.get('/streams')
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, 20)
+
+        # POST /streams
+        response = self.app.post('/streams', {'dutch_streams': 21})
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, True)
+
+        # GET /streams
+        response = self.app.get('/streams?dutch_streams=true')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, 21)
+
+        # POST /streams
         response = self.app.post('/streams', {'streams': -20})
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, False)
-        response = self.app.post('/streams', {'streams': 10})
+        response = self.app.post('/streams', {'dutch_streams': -20})
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, False)
+        response = self.app.post('/streams', {'streams': 11,
+                                              'dutch_streams': 12})
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, True)
+
+        # GET /streams
+        response = self.app.get('/streams')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, 11)
+
+        response = self.app.get('/streams?dutch_streams=true')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, 12)
+
+        # POST /streams
+        response = self.app.patch('/streams')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, False)
 
 
 class AuctionsTest(BaseAuctionWebTest):
@@ -429,10 +468,10 @@ class AuctionTest(BaseAuctionWebTest):
         self.assertEqual(auction['status'], 'active.tendering')
         if self.initial_lots:
             self.assertIn('auctionPeriod', auction['lots'][0])
-            self.assertEqual(parse_date(auction['lots'][0]['auctionPeriod']['startDate'], TZ).weekday(), 0)
+            self.assertEqual(parse_date(auction['lots'][0]['auctionPeriod']['startDate'], TZ).weekday(), 1)
         else:
             self.assertIn('auctionPeriod', auction)
-            self.assertEqual(parse_date(auction['auctionPeriod']['startDate'], TZ).weekday(), 0)
+            self.assertEqual(parse_date(auction['auctionPeriod']['startDate'], TZ).weekday(), 1)
 
     def test_switch_to_unsuccessful(self):
         response = self.api.patch_json(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
@@ -606,6 +645,29 @@ class AuctionPlanning(BaseWebTest):
         now = datetime.now(TZ)
         auctionPeriodstartDate = planning_auction(test_auction_data_test_quick, now, self.db, True)[0]
         self.assertTrue(now < auctionPeriodstartDate < now + timedelta(hours=1))
+
+    def test_auction_quick_planning_insider(self):
+        now = datetime.now(TZ)
+        my_test_auction = deepcopy(test_auction_data_test_quick)
+        my_test_auction['procurementMethodType'] = 'dgfInsider'
+        auctionPeriodstartDate = planning_auction(
+            my_test_auction, now, self.db, True
+        )[0]
+        self.assertTrue(
+            now < auctionPeriodstartDate < now + timedelta(hours=1)
+        )
+
+    def test_auction_planning_overlow_insider(self):
+        now = datetime.now(TZ)
+        my_test_auction = deepcopy(test_auction_data_test_quick)
+        my_test_auction['procurementMethodType'] = 'dgfInsider'
+        res = planning_auction(my_test_auction, now, self.db)[0]
+        startDate = res.date()
+        count = 0
+        while startDate == res.date():
+            count += 1
+            res = planning_auction(my_test_auction, now, self.db)[0]
+        self.assertEqual(count, 15)
 
     def test_auction_planning_overlow(self):
         now = datetime.now(TZ)
