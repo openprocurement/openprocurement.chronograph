@@ -149,7 +149,7 @@ def planning_auction(auction, start, db, quick=False, lot_id=None):
     calendar = get_calendar(db)
     streams = get_streams(db, classic_auction=classic_auction)
     start += timedelta(hours=1)
-    if classic_auction and start.time() > WORKING_DAY_START:
+    if start.time() > WORKING_DAY_START:
         nextDate = start.date() + timedelta(days=1)
     else:
         nextDate = start.date()

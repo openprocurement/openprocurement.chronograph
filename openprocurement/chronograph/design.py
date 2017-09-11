@@ -27,9 +27,9 @@ plan_auctions_view = ViewDefinition('plan', 'auctions', '''function(doc) {
             if (i.indexOf('dutch_streams') == 0) {
                 for (var aid in doc[i]) {
                     emit([doc[i][aid], null],
-                          doc._id.split('_')[1] + '{}');
+                          doc._id.split('_')[1] + '%s');
                 }
             }
         };
     }
-}'''.format(INSIDER_WORKING_DAY_START.isoformat()))
+}''' % INSIDER_WORKING_DAY_START.isoformat())
