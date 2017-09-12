@@ -29,8 +29,17 @@ test_requires = requires + [
     'webtest',
 ]
 
+entry_points = {
+    'paste.app_factory': [
+        'main = openprocurement.chronograph:main'
+    ],
+    'console_scripts': [
+        'bootstrap_chronograph_security = openprocurement.chronograph.database:bootstrap_chronograph_security'
+    ]
+}
+
 setup(name='openprocurement.chronograph',
-      version='0.6.5',
+      version='0.7',
       description='openprocurement.chronograph',
       long_description=README + '\n\n' + CHANGES,
       classifiers=[
@@ -51,8 +60,4 @@ setup(name='openprocurement.chronograph',
       tests_require=test_requires,
       extras_require={'test': test_requires},
       test_suite="openprocurement.chronograph.tests.test.suite",
-      entry_points="""\
-      [paste.app_factory]
-      main = openprocurement.chronograph:main
-      """,
-      )
+      entry_points=entry_points)
