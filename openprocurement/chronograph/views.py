@@ -63,10 +63,22 @@ def calendar_entry_view(request):
 @view_config(route_name='streams', renderer='json')
 def streams_view(request):
     if request.method == 'GET':
-        return get_streams(request.registry.db)
+        classic_auction = request.params.get('dutch_streams', '') not in [
+            'True', 'true', 'y', 'yes', 'Yes'
+        ]
+        return get_streams(request.registry.db,
+                           classic_auction=classic_auction)
     elif request.method == 'POST':
         streams = request.params.get('streams', '')
+        dutch_streams = request.params.get('dutch_streams', '')
+        result = False
         if streams and streams.isdigit():
-            set_streams(request.registry.db, int(streams))
-            return True
+            set_streams(request.registry.db,
+                        streams=int(streams))
+            result = True
+        if dutch_streams and dutch_streams.isdigit():
+            set_streams(request.registry.db,
+                        dutch_streams=int(dutch_streams))
+            result = True
+        return result
     return False
