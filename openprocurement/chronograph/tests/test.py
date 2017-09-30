@@ -379,7 +379,7 @@ class AuctionTest(BaseAuctionWebTest):
                 },
                 'tenderPeriod': {
                     'startDate': now.isoformat(),
-                    'endDate': (now + timedelta(days=5 - now.weekday())).isoformat()
+                    'endDate': (now + timedelta(days=5 - now.weekday(), hours=1)).isoformat()
                 }
             }
         })
