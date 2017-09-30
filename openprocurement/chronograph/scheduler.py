@@ -401,11 +401,12 @@ def check_inner_auction(db, auction):
         for i in auction.get('lots', [])
         if i.get('auctionPeriod', {}).get('startDate')
     ])
-    auc_dict = [
+    auc_dict = dict([
         (x.key[1], (TZ.localize(parse_date(x.value, None)), x.id))
         for x in plan_auctions_view(db, startkey=[auction['id'], None], endkey=[auction['id'], 32 * "f"])
-    ]
-    for key, plan_time, plan_doc in auc_dict:
+    ])
+    for key in auc_dict:
+        plan_time, plan_doc = auc_dict.get(key)
         if not key and (not auction_time or not plan_time < auction_time < plan_time + timedelta(minutes=30)):
             free_slot(db, plan_doc, plan_time, auction['id'], classic_auction)
         elif key and (not lots.get(key) or lots.get(key) and not plan_time < lots.get(key) < plan_time + timedelta(minutes=30)):
