@@ -395,22 +395,28 @@ def free_slot(db, plan_id, plan_time, auction_id, classic_auction=True):
 def check_inner_auction(db, auction):
     classic_auction = \
         auction.get('procurementMethodType') not in NOT_CLASSIC_AUCTIONS
-    auction_time = auction.get('auctionPeriod', {}).get('startDate') and parse_date(auction.get('auctionPeriod', {}).get('startDate'))
+    auction_time = auction.get('auctionPeriod', {}).get('startDate') and \
+        parse_date(auction.get('auctionPeriod', {}).get('startDate'))
     lots = dict([
         (i['id'], parse_date(i.get('auctionPeriod', {}).get('startDate')))
         for i in auction.get('lots', [])
         if i.get('auctionPeriod', {}).get('startDate')
     ])
-    auc_dict = dict([
-        (x.key[1], (TZ.localize(parse_date(x.value, None)), x.id))
-        for x in plan_auctions_view(db, startkey=[auction['id'], None], endkey=[auction['id'], 32 * "f"])
-    ])
-    for key in auc_dict:
-        plan_time, plan_doc = auc_dict.get(key)
-        if not key and (not auction_time or not plan_time < auction_time < plan_time + timedelta(minutes=30)):
+    auc_list = [
+        (x.key[1], TZ.localize(parse_date(x.value, None)), x.id)
+        for x in plan_auctions_view(db, startkey=[auction['id'], None],
+                                    endkey=[auction['id'], 32 * "f"])
+    ]
+    for key, plan_time, plan_doc in auc_list:
+        if not key and (not auction_time or not
+                        plan_time < auction_time < plan_time +
+                        timedelta(minutes=30)):
             free_slot(db, plan_doc, plan_time, auction['id'], classic_auction)
-        elif key and (not lots.get(key) or lots.get(key) and not plan_time < lots.get(key) < plan_time + timedelta(minutes=30)):
-            free_slot(db, plan_doc, plan_time, "_".join([auction['id'], key]), classic_auction)
+        elif key and (not lots.get(key) or lots.get(key) and not
+                      plan_time < lots.get(key) < plan_time +
+                      timedelta(minutes=30)):
+            free_slot(db, plan_doc, plan_time, "_".join([auction['id'], key]),
+                      classic_auction)
 
 
 def process_listing(auctions, scheduler, callback_url, db, check=True):

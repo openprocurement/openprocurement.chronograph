@@ -9,7 +9,7 @@ def sync_design(db):
 
 
 plan_auctions_view = ViewDefinition('plan', 'auctions', '''function(doc) {
-    if(doc.streams) {
+    if(doc.streams || doc.dutch_streams) {
         for (var i in doc) {
             if (i.indexOf('stream_') == 0) {
                 for (var t in doc[i]) {
@@ -27,7 +27,7 @@ plan_auctions_view = ViewDefinition('plan', 'auctions', '''function(doc) {
             if (i.indexOf('dutch_streams') == 0) {
                 for (var aid in doc[i]) {
                     emit([doc[i][aid], null],
-                          doc._id.split('_')[1] + '%s');
+                          doc._id.split('_')[1] + 'T' + '%s');
                 }
             }
         };

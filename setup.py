@@ -27,6 +27,7 @@ test_requires = requires + [
     'openprocurement.api',
     'openprocurement.auctions.flash',
     'webtest',
+    'mock',
 ]
 
 setup(name='openprocurement.chronograph',
