@@ -704,19 +704,19 @@ class AuctionPlanning(BaseWebTest):
 
 
 def suite():
-    suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(SimpleTest))
-    suite.addTest(unittest.makeSuite(AuctionLotTest))
-    suite.addTest(unittest.makeSuite(AuctionLotTest2))
-    suite.addTest(unittest.makeSuite(AuctionLotTest3))
-    suite.addTest(unittest.makeSuite(AuctionLotTest4))
-    suite.addTest(unittest.makeSuite(AuctionPlanning))
-    suite.addTest(unittest.makeSuite(AuctionTest))
-    suite.addTest(unittest.makeSuite(AuctionTest2))
-    suite.addTest(unittest.makeSuite(AuctionTest3))
-    suite.addTest(unittest.makeSuite(AuctionTest4))
-    suite.addTest(unittest.makeSuite(AuctionsTest))
-    return suite
+    tests = unittest.TestSuite()
+    tests.addTest(unittest.makeSuite(AuctionLotTest))
+    tests.addTest(unittest.makeSuite(AuctionLotTest2))
+    tests.addTest(unittest.makeSuite(AuctionLotTest3))
+    tests.addTest(unittest.makeSuite(AuctionLotTest4))
+    tests.addTest(unittest.makeSuite(AuctionPlanning))
+    tests.addTest(unittest.makeSuite(AuctionTest))
+    tests.addTest(unittest.makeSuite(AuctionTest2))
+    tests.addTest(unittest.makeSuite(AuctionTest3))
+    tests.addTest(unittest.makeSuite(AuctionTest4))
+    tests.addTest(unittest.makeSuite(AuctionsTest))
+    tests.addTest(unittest.makeSuite(SimpleTest))
+    return tests
 
 
 if __name__ == '__main__':
