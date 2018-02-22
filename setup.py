@@ -6,6 +6,15 @@ here = os.path.abspath(os.path.dirname(__file__))
 README = open(os.path.join(here, 'README.rst')).read()
 CHANGES = open(os.path.join(here, 'CHANGES.rst')).read()
 
+entry_points = {
+    'paste.app_factory': [
+        'main = openprocurement.chronograph:main'
+    ],
+    'openprocurement.tests': [
+        'chronograph = openprocurement.chronograph.tests.main:suite'
+    ]
+}
+
 requires = [
     'SQLAlchemy',
     'apscheduler',
@@ -52,8 +61,5 @@ setup(name='openprocurement.chronograph',
       tests_require=test_requires,
       extras_require={'test': test_requires},
       test_suite="openprocurement.chronograph.tests.test.suite",
-      entry_points="""\
-      [paste.app_factory]
-      main = openprocurement.chronograph:main
-      """,
+      entry_points=entry_points,
       )

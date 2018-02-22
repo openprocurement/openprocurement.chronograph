@@ -7,13 +7,14 @@ from openprocurement.chronograph.scheduler import check_inner_auction
 from openprocurement.chronograph.tests.data import plantest
 from openprocurement.chronograph.design import sync_design
 
+dir_path = os.path.dirname(os.path.realpath(__file__))
+
 
 class SchedulerTest(unittest.TestCase):
 
     def setUp(self):
         conf = ConfigParser()
-        path_to_config = '{}/openprocurement/chronograph/tests/' \
-            'chronograph.ini'.format(os.getcwd())
+        path_to_config = os.path.join(dir_path, 'chronograph.ini')
         if os.path.isfile(path_to_config):
             conf.read(path_to_config)
             settings = {k: v for k, v in conf.items('app:main')}
@@ -114,9 +115,9 @@ class SchedulerTest(unittest.TestCase):
 
 
 def suite():
-    suite = unittest.TestSuite()
-    suite.addTest(unittest.makeSuite(SchedulerTest))
-    return suite
+    tests = unittest.TestSuite()
+    tests.addTest(unittest.makeSuite(SchedulerTest))
+    return tests
 
 
 if __name__ == '__main__':
