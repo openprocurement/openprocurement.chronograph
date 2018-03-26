@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
-import unittest
-import webtest
 import os
 import requests.api
+import unittest
+import webtest
 from datetime import datetime, timedelta
+from time import sleep
+
 from requests.models import Response
 from requests.structures import CaseInsensitiveDict
 from requests.utils import get_encoding_from_headers
+
+from openprocurement.api.constants import VERSION
+
 from openprocurement.chronograph.scheduler import SESSION
-from openprocurement.api.utils import VERSION
-from time import sleep
+
 try:
     from openprocurement.auctions.flash.tests.base import test_auction_data
 except ImportError:
