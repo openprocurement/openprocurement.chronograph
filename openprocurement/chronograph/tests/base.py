@@ -1,81 +1,33 @@
 # -*- coding: utf-8 -*-
-import unittest
-import webtest
+from __future__ import print_function
+
 import os
+import sys
+import unittest
+from datetime import timedelta
+from json import dumps, loads
+
 import requests.api
-from datetime import datetime, timedelta
+import webtest
+from bottle import Bottle
+from gevent.pywsgi import WSGIServer
 from requests.models import Response
 from requests.structures import CaseInsensitiveDict
 from requests.utils import get_encoding_from_headers
+
 from openprocurement.chronograph.scheduler import SESSION
-from openprocurement.api.utils import VERSION
-from time import sleep
-try:
-    from openprocurement.auctions.flash.tests.base import test_auction_data
-except ImportError:
-    now = datetime.now()
-    test_auction_data = {
-        "title": u"футляри до державних нагород",
-        "procuringEntity": {
-            "name": u"Державне управління справами",
-            "identifier": {
-                "scheme": u"UA-EDR",
-                "id": u"00037256",
-                "uri": u"http://www.dus.gov.ua/"
-            },
-            "address": {
-                "countryName": u"Україна",
-                "postalCode": u"01220",
-                "region": u"м. Київ",
-                "locality": u"м. Київ",
-                "streetAddress": u"вул. Банкова, 11, корпус 1"
-            },
-            "contactPoint": {
-                "name": u"Державне управління справами",
-                "telephone": u"0440000000"
-            }
-        },
-        "value": {
-            "amount": 500,
-            "currency": u"UAH"
-        },
-        "minimalStep": {
-            "amount": 35,
-            "currency": u"UAH"
-        },
-        "items": [
-            {
-                "description": u"футляри до державних нагород",
-                "classification": {
-                    "scheme": u"CAV",
-                    "id": u"70122000-2",
-                    "description": u"Cartons"
-                },
-                "additionalClassifications": [
-                    {
-                        "scheme": u"ДКПП",
-                        "id": u"17.21.1",
-                        "description": u"папір і картон гофровані, паперова й картонна тара"
-                    }
-                ],
-                "unit": {
-                    "name": u"item",
-                    "code": u"44617100-9"
-                },
-                "quantity": 5
-            }
-        ],
-        "enquiryPeriod": {
-            "endDate": (now + timedelta(days=7)).isoformat()
-        },
-        "tenderPeriod": {
-            "endDate": (now + timedelta(days=14)).isoformat()
-        }
-    }
+from openprocurement.chronograph.tests.data import test_auction_data
+from openprocurement.chronograph.tests.test_server import (
+    API_VERSION as VERSION, resource_filter, PORT, setup_routing
+ )
+from openprocurement.chronograph.tests.utils import (
+    now, update_periods, update_json
+)
+
+data = {"data": test_auction_data}
 
 
 class BaseWebTest(unittest.TestCase):
-
     """Base Web Test to test openprocurement.api.
 
     It setups the database before each test and delete it after.
@@ -83,43 +35,58 @@ class BaseWebTest(unittest.TestCase):
     scheduler = True
 
     def setUp(self):
-        self.api = api = webtest.TestApp("config:tests.ini", relative_to=os.path.dirname(__file__))
-        self.api.authorization = ('Basic', ('token', ''))
-        self.api_db = self.api.app.registry.db
-        app = None
+
+        self.api = Bottle()
+        self.api.config['auction_{}'.format(data['data']['id'])] = dumps(data)
+        self.api.router.add_filter('resource_filter', resource_filter)
+        setup_routing(self.api)
+        setup_routing(self.api, routes=[
+            "auction_patch", "auction", "auctions", "auction_subpage_item_patch"
+        ])
+        self.server = WSGIServer(('localhost', PORT), self.api, log=None)
+        try:
+            self.server.start()
+        except Exception as error:
+            print(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2],
+                  file=sys.stderr)
+            raise error
 
         def request(method, url, **kwargs):
-            if 'data' in kwargs:
+            if 'data' in kwargs and app.app.registry.api_url not in url:
                 kwargs['params'] = kwargs.pop('data')
             elif 'params' in kwargs and kwargs['params'] is None:
                 kwargs.pop('params')
-            auth = None
-            if 'auth' in kwargs:
-                auth = kwargs.pop('auth')
             for i in ['auth', 'allow_redirects', 'stream']:
                 if i in kwargs:
                     kwargs.pop(i)
             try:
                 if app.app.registry.api_url in url:
-                    if auth:
-                        authorization = api.authorization
-                        api.authorization = ('Basic', auth)
-                    resp = api._gen_request(method.upper(), url, expect_errors=True, **kwargs)
-                    if auth:
-                        api.authorization = authorization
+
+                    if kwargs.get('params'):
+                        if loads(kwargs['params']).get('data'):
+                            kwargs['data'] = kwargs.pop('params')
+                    if kwargs.get('data') and not kwargs.get('headers'):
+                        kwargs['json'] = kwargs.pop('data')
+
+                    resp = self._request(method.upper(), url, **kwargs)
+                    if 'errors' in resp.json():
+                        resp.status_code = 404  # mocked api app can return only 404 location errors
                 else:
                     resp = app._gen_request(method.upper(), url, expect_errors=True, **kwargs)
             except:
                 response = Response()
                 response.status_code = 404
             else:
-                response = Response()
-                response.status_code = resp.status_int
-                response.headers = CaseInsensitiveDict(getattr(resp, 'headers', {}))
-                response.encoding = get_encoding_from_headers(response.headers)
-                response.raw = resp
-                response._content = resp.body
-                response.reason = resp.status
+                if isinstance(resp, Response):
+                    response = resp
+                else:
+                    response = Response()
+                    response.status_code = resp.status_int
+                    response.headers = CaseInsensitiveDict(getattr(resp, 'headers', {}))
+                    response.encoding = get_encoding_from_headers(response.headers)
+                    response.raw = resp
+                    response._content = resp.body
+                    response.reason = resp.status
                 if isinstance(url, bytes):
                     response.url = url.decode('utf-8')
                 else:
@@ -142,69 +109,70 @@ class BaseWebTest(unittest.TestCase):
     def tearDown(self):
         requests.api.request = self._request
         SESSION.request = self._srequest
-        del self.couchdb_server[self.api_db.name]
-        del self.couchdb_server[self.db.name]
+        self.server.stop()
+        try:
+            del self.couchdb_server[self.db.name]
+        except:
+            pass
 
 
 class BaseAuctionWebTest(BaseWebTest):
-    initial_data = test_auction_data
+    auction_id = test_auction_data["id"]
     initial_bids = None
     initial_lots = None
     sandbox = False
+    quick = False
 
     def setUp(self):
         super(BaseAuctionWebTest, self).setUp()
         if self.sandbox:
             os.environ['SANDBOX_MODE'] = "True"
-        # Create auction
-        self.api.authorization = ('Basic', ('token', ''))
-        response = self.api.post_json('{}auctions'.format(self.app.app.registry.api_url), {'data': self.initial_data})
-        auction = response.json['data']
-        self.auction_id = auction['id']
+        self.auction = update_periods(self.api, 'auction', self.auction_id, self.quick)
         if self.initial_lots:
+
             lots = []
-            for i in self.initial_lots:
-                response = self.api.post_json('{}auctions/{}/lots'.format(self.app.app.registry.api_url, self.auction_id), {'data': i})
-                self.assertEqual(response.status, '201 Created')
-                lots.append(response.json['data'])
+            for lot in self.initial_lots:
+                lot['date'] = now.isoformat()
+                lots.append(lot)
             self.initial_lots = lots
-            response = self.api.patch_json('{}auctions/{}'.format(self.app.app.registry.api_url, self.auction_id), {"data": {
-                "items": [
-                    {
-                        'relatedLot': lots[i % len(lots)]['id']
-                    }
-                    for i in xrange(len(auction['items']))
-                ]
-            }})
-            self.assertEqual(response.status, '200 OK')
+            response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+            auction = response.json()['data']
+            auction['lots'] = lots
+            update_json(self.api, 'auction', self.auction_id, {"data": auction})
+            response = requests.patch('{}auctions/{}'.format(self.app.app.registry.api_url, self.auction_id),
+                                      {"data": {"id": "f547ece35436484e8656a2988fb52a44"}})
+            self.assertEqual(response.status_code, 200)
+
+            auction = response.json()['data']
+            for i in xrange(len(auction['items'])):
+                auction['items'][i].update({'relatedLot': lots[i % len(lots)]['id']})
+            response = requests.patch('{}auctions/{}'.format(self.app.app.registry.api_url, self.auction_id), {"data": auction})
+            self.assertEqual(response.status_code, 200)
+
         if self.initial_bids:
-            self.api.authorization = ('Basic', ('chronograph', ''))
-            now = datetime.now()
-            data = self.api_db.get(self.auction_id)
-            data.update({
-                "enquiryPeriod": {
-                    "startDate": now.isoformat(),
-                    "endDate": now.isoformat()
-                },
-                "tenderPeriod": {
-                    "startDate": now.isoformat(),
-                    "endDate": (now + timedelta(days=1)).isoformat()
+            response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+            self.assertEqual(response.status_code, 200)
+            response.json = response.json()
+            auction = response.json['data']
+
+            response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+                'data': {
+                    "enquiryPeriod": {
+                        "startDate": now.isoformat(),
+                        "endDate": now.isoformat()
+                    },
+                    "tenderPeriod": {
+                        "startDate": now.isoformat(),
+                        "endDate": (now + timedelta(days=1)).isoformat()
+                    }
                 }
             })
-            self.api_db.save(data)
-            for _ in range(100):
-                response = self.api.patch_json('{}auctions/{}'.format(self.app.app.registry.api_url, self.auction_id), {
-                    'data': {
-                        'id': self.auction_id
-                    }
-                })
-                if response.json['data']['status'] == 'active.tendering':
-                    break
-                sleep(0.5)
-            self.assertEqual(response.json['data']['status'], 'active.tendering')
-            self.api.authorization = ('Basic', ('token', ''))
+
+            self.assertEqual(response.status_code, 200)
+
             bids = []
             for i in self.initial_bids:
+                i['date'] = now.isoformat()
                 if self.initial_lots:
                     i = i.copy()
                     value = i.pop('value')
@@ -215,20 +183,23 @@ class BaseAuctionWebTest(BaseWebTest):
                         }
                         for lot in self.initial_lots
                     ]
-                response = self.api.post_json(self.app.app.registry.api_url + 'auctions/' + self.auction_id + '/bids', {'data': i})
-                bids.append(response.json['data'])
+
+                bids.append(i)
             self.initial_bids = bids
-            data = self.api_db.get(self.auction_id)
-            data.update({
+            response = requests.patch('{}auctions/{}'.format(self.app.app.registry.api_url, self.auction_id),
+                                      {"data": {"bids": bids}})
+            self.assertEqual(response.status_code, 200)
+            auction_with_bids = response.json()['data']
+
+            auction_with_bids.update({
                 'status': 'active.tendering',
                 "enquiryPeriod": auction["enquiryPeriod"],
                 "tenderPeriod": auction["tenderPeriod"]
             })
-            self.api_db.save(data)
-            self.api.authorization = ('Basic', ('token', ''))
+            update_json(self.api, 'auction', self.auction_id, {"data": auction_with_bids})
 
     def tearDown(self):
         if self.sandbox:
             os.environ.pop('SANDBOX_MODE')
-        #del self.api_db[self.auction_id]
         super(BaseAuctionWebTest, self).tearDown()
+        update_json(self.api, 'auction', self.auction_id, self.auction)
