@@ -38,6 +38,7 @@ class BaseWebTest(unittest.TestCase):
 
         self.api = Bottle()
         self.api.config['auction_{}'.format(data['data']['id'])] = dumps(data)
+        self.api.config['feed_changes'] = 0
         self.api.router.add_filter('resource_filter', resource_filter)
         setup_routing(self.api)
         setup_routing(self.api, routes=[
@@ -107,6 +108,7 @@ class BaseWebTest(unittest.TestCase):
             self.app.app.registry.scheduler.shutdown()
 
     def tearDown(self):
+        self.api.config['feed_changes'] = 0
         requests.api.request = self._request
         SESSION.request = self._srequest
         self.server.stop()
