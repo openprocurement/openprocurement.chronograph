@@ -41,22 +41,28 @@ def resource_page_get(resource_name):
     resources = {
         "next_page": {
             "path": "/api/2.4/auctions?feed=changes&offset=f547ece35436484e8656a2988fb52a44&mode=_all_&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check",
-            "uri": "http://0.0.0.0:6543/api/2.4/auctions?feed=changes&offset=f547ece35436484e8656a2988fb52a44&mode=_all_&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check",
+            "uri": "http://0.0.0.0:6543/api/2.4/auctions?feed=changes&offset=f547ece35436484e8656a2988fb52a44&descending=1&mode=_all_&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check",
             "offset": "f547ece35436484e8656a2988fb52a44"
         },
-        "data": [{
-            "status": "active.enquiries",
-            "next_check": (now - timedelta(minutes=1)).isoformat(),
-            "procurementMethodType": "belowThreshold",
-            "dateModified": now.isoformat(),
-            "id": "f547ece35436484e8656a2988fb52a44"
-        }],
+        "data": [],
         "prev_page": {
             "path": "/api/2.4/auctions?feed=changes&offset=&mode=_all_&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check",
             "uri": "http://0.0.0.0:6543/api/2.4/auctions?feed=changes&offset=&mode=_all_&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check",
             "offset": ""
         }
     }
+    if request.app.config['feed_changes'] == 0:
+        request.app.config['feed_changes'] += 1
+    elif request.app.config['feed_changes'] != 0:
+        resources['data'] = [{
+            "status": "active.enquiries",
+            "next_check": (now - timedelta(minutes=1)).isoformat(),
+            "procurementMethodType": "belowThreshold",
+            "dateModified": now.isoformat(),
+            "id": "f547ece35436484e8656a2988fb52a44"
+        }]
+        resources['next_page']['uri'] = "http://0.0.0.0:6543/api/2.4/auctions?feed=changes&offset=f547ece35436484e8656a2988fb52a44&mode=_all_&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check"
+        request.app.config['feed_changes'] = 0
     return dumps(resources)
 
 
