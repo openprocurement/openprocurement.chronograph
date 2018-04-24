@@ -3,7 +3,7 @@ import unittest
 from ConfigParser import ConfigParser
 from couchdb import Server
 from datetime import datetime
-from openprocurement.chronograph.scheduler import check_inner_auction
+from openprocurement.chronograph.scheduler import check_inner_auction, TZ
 from openprocurement.chronograph.tests.data import plantest
 from openprocurement.chronograph.design import sync_design
 
@@ -41,11 +41,12 @@ class SchedulerTest(unittest.TestCase):
         lots_ids = ['1c2fb1e496b317b2b87e197e2332da77',
                     'b10f9f7f26157ae2f349be8dc2106d6e']
         today = datetime.now().date().isoformat()
+        test_time = today + ' ' + '12:20:00.000+03:00'
         auction = {
             'id': insider_auction_id,
             'procurementMethodType': 'dgfInsider',
             'auctionPeriod': {
-                'startDate': datetime.now().isoformat()
+                'startDate': test_time
             }
         }
 
@@ -65,11 +66,11 @@ class SchedulerTest(unittest.TestCase):
         auction['lots'] = [
             {
                 'id': lots_ids[0],
-                'auctionPeriod': {'startDate': datetime.now().isoformat()}
+                'auctionPeriod': {'startDate': test_time}
             },
             {
                 'id': lots_ids[1],
-                'auctionPeriod': {'startDate': datetime.now().isoformat()}
+                'auctionPeriod': {'startDate': test_time}
             }
         ]
         self.assertEqual(len(plantest.get('stream_1')), 10)
