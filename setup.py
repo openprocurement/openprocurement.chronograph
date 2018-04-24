@@ -22,6 +22,7 @@ requires = [
     'couchdb',
     'grequests',
     'iso8601',
+    'python-dateutil',
     'ndg-httpsclient',
     'pbkdf2',
     'pyasn1',
