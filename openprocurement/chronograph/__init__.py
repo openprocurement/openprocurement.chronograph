@@ -127,6 +127,7 @@ def main(global_config, **settings):
                           timezone=TZ)
     if 'jobstore_db' in settings:
         scheduler.add_jobstore('sqlalchemy', url=settings['jobstore_db'])
+    config.registry.planning = bool(int(settings.get('planning', '1')))
     config.registry.scheduler = scheduler
     # scheduler.remove_all_jobs()
     # scheduler.start()
