@@ -419,7 +419,7 @@ def check_inner_auction(db, auction):
                       classic_auction)
 
 
-def process_listing(auctions, scheduler, callback_url, db, check=True):
+def process_listing(auctions, scheduler, callback_url, db, check=True, planning=True):
     run_date = get_now()
     for auction in auctions:
         if check:
@@ -437,19 +437,20 @@ def process_listing(auctions, scheduler, callback_url, db, check=True):
                 scheduler.add_job(push, 'date', run_date=run_date+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), **check_args)
             elif not recheck_job or recheck_job.next_run_time != next_check:
                 scheduler.add_job(push, 'date', run_date=next_check+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), **check_args)
-        if any([
-            'shouldStartAfter' in i.get('auctionPeriod', {}) and i['auctionPeriod']['shouldStartAfter'] > i['auctionPeriod'].get('startDate')
-            for i in auction.get('lots', [])
-        ]) or (
-            'shouldStartAfter' in auction.get('auctionPeriod', {}) and auction['auctionPeriod']['shouldStartAfter'] > auction['auctionPeriod'].get('startDate')
-        ):
-            resync_job = scheduler.get_job(tid)
-            if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
-                scheduler.add_job(push, 'date', run_date=run_date+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), timezone=TZ,
-                                  id=tid, name="Resync {}".format(tid),
-                                  misfire_grace_time=60 * 60,
-                                  args=[callback_url + 'resync/' + tid, None],
-                                  replace_existing=True)
+        if planning:
+            if any([
+                'shouldStartAfter' in i.get('auctionPeriod', {}) and i['auctionPeriod']['shouldStartAfter'] > i['auctionPeriod'].get('startDate')
+                for i in auction.get('lots', [])
+            ]) or (
+                'shouldStartAfter' in auction.get('auctionPeriod', {}) and auction['auctionPeriod']['shouldStartAfter'] > auction['auctionPeriod'].get('startDate')
+            ):
+                resync_job = scheduler.get_job(tid)
+                if not resync_job or resync_job.next_run_time > run_date + timedelta(minutes=1):
+                    scheduler.add_job(push, 'date', run_date=run_date+timedelta(seconds=randint(SMOOTHING_MIN, SMOOTHING_MAX)), timezone=TZ,
+                                      id=tid, name="Resync {}".format(tid),
+                                      misfire_grace_time=60 * 60,
+                                      args=[callback_url + 'resync/' + tid, None],
+                                      replace_existing=True)
 
 
 def resync_auctions(request):
@@ -480,7 +481,7 @@ def resync_auctions(request):
                     next_url = json['prev_page']['uri']
             if not json['data']:
                 break
-            process_listing(json['data'], scheduler, callback_url, request.registry.db)
+            process_listing(json['data'], scheduler, callback_url, request.registry.db, planning=request.registry.planning)
             sleep(0.1)
         except Exception as e:
             LOGGER.error("Error on resync all: {}".format(repr(e)), extra=context_unpack(request, {'MESSAGE_ID': 'error_resync_all'}))
@@ -516,7 +517,7 @@ def resync_auctions_back(request):
             if not json['data']:
                 LOGGER.info("Resync back stopped", extra=context_unpack(request, {'MESSAGE_ID': 'resync_back_stoped'}))
                 return next_url
-            process_listing(json['data'], scheduler, callback_url, request.registry.db, False)
+            process_listing(json['data'], scheduler, callback_url, request.registry.db, False, request.registry.planning)
             sleep(0.1)
         except Exception as e:
             LOGGER.error("Error on resync back: {}".format(repr(e)), extra=context_unpack(request, {'MESSAGE_ID': 'error_resync_back'}))
