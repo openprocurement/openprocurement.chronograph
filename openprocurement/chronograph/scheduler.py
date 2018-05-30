@@ -281,7 +281,7 @@ def push(url, params):
 def resync_auction(request):
     auction_id = request.matchdict['auction_id']
     scheduler = request.registry.scheduler
-    url = request.registry.api_url + 'auctions/' + auction_id
+    url = '{}/{}'.format(request.registry.full_url, auction_id)
     api_token = request.registry.api_token
     resync_url = request.registry.callback_url + 'resync/' + auction_id
     recheck_url = request.registry.callback_url + 'recheck/' + auction_id
@@ -334,7 +334,7 @@ def resync_auction(request):
 def recheck_auction(request):
     auction_id = request.matchdict['auction_id']
     scheduler = request.registry.scheduler
-    url = request.registry.api_url + 'auctions/' + auction_id
+    url = '{}/{}'.format(request.registry.full_url, auction_id)
     api_token = request.registry.api_token
     recheck_url = request.registry.callback_url + 'recheck/' + auction_id
     request_id = request.environ.get('REQUEST_ID', '')
@@ -456,7 +456,7 @@ def process_listing(auctions, scheduler, callback_url, db, check=True, planning=
 def resync_auctions(request):
     next_url = request.params.get('url', '')
     if not next_url or 'opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check' not in next_url:
-        next_url = request.registry.api_url + 'auctions?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check'
+        next_url = request.registry.full_url + '?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
@@ -498,7 +498,7 @@ def resync_auctions(request):
 def resync_auctions_back(request):
     next_url = request.params.get('url', '')
     if not next_url:
-        next_url = request.registry.api_url + 'auctions?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check'
+        next_url = request.registry.full_url + '?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check'
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url

@@ -23,6 +23,7 @@ from openprocurement.chronograph.tests.test_server import (
 from openprocurement.chronograph.tests.utils import (
     now, update_periods, update_json
 )
+from openprocurement.chronograph.utils import get_full_url
 
 data = {"data": test_auction_data}
 
@@ -102,6 +103,7 @@ class BaseWebTest(unittest.TestCase):
 
         self.app = app = webtest.TestApp("config:chronograph.ini", relative_to=os.path.dirname(__file__))
         self.app.app.registry.api_url = self.app.app.registry.api_url.replace('0.12', VERSION)
+        self.app.app.registry.full_url = get_full_url(self.app.app.registry)
         self.couchdb_server = self.app.app.registry.couchdb_server
         self.db = self.app.app.registry.db
         if not self.scheduler:
@@ -137,27 +139,27 @@ class BaseAuctionWebTest(BaseWebTest):
                 lot['date'] = now.isoformat()
                 lots.append(lot)
             self.initial_lots = lots
-            response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+            response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
             auction = response.json()['data']
             auction['lots'] = lots
             update_json(self.api, 'auction', self.auction_id, {"data": auction})
-            response = requests.patch('{}auctions/{}'.format(self.app.app.registry.api_url, self.auction_id),
+            response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id),
                                       {"data": {"id": "f547ece35436484e8656a2988fb52a44"}})
             self.assertEqual(response.status_code, 200)
 
             auction = response.json()['data']
             for i in xrange(len(auction['items'])):
                 auction['items'][i].update({'relatedLot': lots[i % len(lots)]['id']})
-            response = requests.patch('{}auctions/{}'.format(self.app.app.registry.api_url, self.auction_id), {"data": auction})
+            response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {"data": auction})
             self.assertEqual(response.status_code, 200)
 
         if self.initial_bids:
-            response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+            response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
             self.assertEqual(response.status_code, 200)
             response.json = response.json()
             auction = response.json['data']
 
-            response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+            response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
                 'data': {
                     "enquiryPeriod": {
                         "startDate": now.isoformat(),
@@ -188,7 +190,7 @@ class BaseAuctionWebTest(BaseWebTest):
 
                 bids.append(i)
             self.initial_bids = bids
-            response = requests.patch('{}auctions/{}'.format(self.app.app.registry.api_url, self.auction_id),
+            response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id),
                                       {"data": {"bids": bids}})
             self.assertEqual(response.status_code, 200)
             auction_with_bids = response.json()['data']

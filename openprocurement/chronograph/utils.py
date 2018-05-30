@@ -43,3 +43,7 @@ def context_unpack(request, msg, params=None):
     for key, value in logging_context.items():
         journal_context["JOURNAL_" + key] = value
     return journal_context
+
+
+def get_full_url(registry):
+    return '{}{}'.format(registry.api_url, registry.api_resource)

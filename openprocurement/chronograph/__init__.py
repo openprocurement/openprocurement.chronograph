@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 #from openprocurement.chronograph.jobstores import CouchDBJobStore
 from openprocurement.chronograph.design import sync_design
 from openprocurement.chronograph.scheduler import push
-from openprocurement.chronograph.utils import add_logging_context
+from openprocurement.chronograph.utils import add_logging_context, get_full_url
 from pyramid.config import Configurator
 from pytz import timezone
 from pyramid.events import ApplicationCreated, ContextFound
@@ -120,6 +120,8 @@ def main(global_config, **settings):
         'max_instances': 3
     }
     config.registry.api_url = settings.get('api.url')
+    config.registry.api_resource = settings.get('api.resource', 'auctions')
+    config.registry.full_url = get_full_url(config.registry)
     config.registry.callback_url = settings.get('callback.url')
     scheduler = Scheduler(jobstores=jobstores,
                           #executors=executors,
