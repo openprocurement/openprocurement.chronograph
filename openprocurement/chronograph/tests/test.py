@@ -170,13 +170,13 @@ class AuctionTest(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.enquiries')
 
     def test_switch_to_auctioning_enquiryPeriod(self):
-        response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+        response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
             'data': {
                 "enquiryPeriod": {
                     "endDate": datetime.now(TZ).isoformat()
@@ -189,13 +189,13 @@ class AuctionTest(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.tendering')
 
     def test_switch_to_auctioning_tenderPeriod(self):
-        response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+        response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
             'data': {
                 "enquiryPeriod": {
                     "endDate": datetime.now(TZ).isoformat()
@@ -209,7 +209,7 @@ class AuctionTest(BaseAuctionWebTest):
             response = self.app.get('/recheck/' + self.auction_id)
             self.assertEqual(response.status, '200 OK')
             self.assertNotEqual(response.json, None)
-            response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+            response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
             response.json = response.json()
             auction = response.json['data']
             if response.json['data']['status'] == 'active.tendering':
@@ -218,7 +218,7 @@ class AuctionTest(BaseAuctionWebTest):
         self.assertEqual(auction['status'], 'active.tendering')
 
     def test_wait_for_tenderPeriod(self):
-        response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+        response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
             'data': {
                 "enquiryPeriod": {
                     "endDate": datetime.now(TZ).isoformat()
@@ -231,14 +231,14 @@ class AuctionTest(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.enquiries')
 
     def test_set_auctionPeriod_jobs(self):
         now = datetime.now(TZ)
-        response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+        response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
             'data': {
                 "enquiryPeriod": {
                     "endDate": now.isoformat()
@@ -270,7 +270,7 @@ class AuctionTest(BaseAuctionWebTest):
             self.app.get('/resync_all')
             self.app.app.registry.scheduler.shutdown()
 
-            response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+            response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
             response.json = response.json()
             auction = response.json['data']
             self.assertEqual(auction['status'], 'active.tendering')
@@ -288,7 +288,7 @@ class AuctionTest(BaseAuctionWebTest):
             self.assertEqual(response.status, '200 OK')
             self.assertEqual(response.json, None)
 
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.tendering')
@@ -299,7 +299,7 @@ class AuctionTest(BaseAuctionWebTest):
 
     def test_set_auctionPeriod_nextday(self):
         now = datetime.now(TZ)
-        response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+        response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
             'data': {
                 "enquiryPeriod": {
                     "endDate": now.isoformat()
@@ -313,14 +313,14 @@ class AuctionTest(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.tendering')
         response = self.app.get('/resync/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.tendering')
@@ -343,7 +343,7 @@ class AuctionTest(BaseAuctionWebTest):
 
     def test_set_auctionPeriod_skip_weekend(self):
         now = datetime.now(TZ)
-        response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+        response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
             'data': {
                 "enquiryPeriod": {
                     "endDate": now.isoformat()
@@ -357,14 +357,14 @@ class AuctionTest(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.tendering')
         response = self.app.get('/resync/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.tendering')
@@ -382,7 +382,7 @@ class AuctionTest(BaseAuctionWebTest):
             date = today + timedelta(days=i)
             self.app.post('/calendar/' + date.isoformat())
         calendar = self.app.get('/calendar').json
-        response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+        response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
             'data': {
                 "enquiryPeriod": {
                     "endDate": now.isoformat()
@@ -396,14 +396,14 @@ class AuctionTest(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.tendering')
         response = self.app.get('/resync/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.tendering')
@@ -418,7 +418,7 @@ class AuctionTest(BaseAuctionWebTest):
 
     def test_set_auctionPeriod_today(self):
         now = datetime.now(TZ)
-        response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+        response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
             'data': {
                 "enquiryPeriod": {
                     "endDate": now.isoformat()
@@ -432,14 +432,14 @@ class AuctionTest(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.tendering')
         response = self.app.get('/resync/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.tendering')
@@ -451,7 +451,7 @@ class AuctionTest(BaseAuctionWebTest):
             self.assertEqual(parse_date(auction['auctionPeriod']['startDate'], TZ).weekday(), 1)
 
     def test_switch_to_unsuccessful(self):
-        response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+        response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
             'data': {
                 "enquiryPeriod": {
                     "endDate": datetime.now(TZ).isoformat()
@@ -465,14 +465,14 @@ class AuctionTest(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.tendering')
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'unsuccessful')
@@ -491,7 +491,7 @@ class AuctionTest2(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.qualification')
@@ -500,31 +500,31 @@ class AuctionTest2(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.qualification')
         self.assertIn('awards', auction)
         award = auction['awards'][0]
-        response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id + '/awards/' + award['id'], {"data": {"status": "unsuccessful"}})
+        response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id) + '/awards/' + award['id'], {"data": {"status": "unsuccessful"}})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers['Content-type'], 'application/json')
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertNotEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.awarded')
 
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         auction = response.json()['data']
         auction['awards'][0]['complaintPeriod']['endDate'] = datetime.now(TZ).isoformat()
         update_json(self.api, 'auction', self.auction_id, {"data": auction})
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'unsuccessful')
@@ -543,7 +543,7 @@ class AuctionTest3(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.auction')
@@ -552,7 +552,7 @@ class AuctionTest3(BaseAuctionWebTest):
         response = self.app.get('/recheck/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         auction = response.json()['data']
         self.assertEqual(auction['status'], 'active.auction')
         if self.initial_lots:
@@ -566,14 +566,14 @@ class AuctionTest3(BaseAuctionWebTest):
             self.assertIn('shouldStartAfter', auction['auctionPeriod'])
             self.assertNotIn('startDate', auction['auctionPeriod'])
             self.assertGreater(auction['auctionPeriod']['shouldStartAfter'], auction['auctionPeriod'].get('startDate'))
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         auction = response.json()['data']
         self.assertEqual(auction['status'], 'active.auction')
         response = self.app.get('/resync/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
 
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         auction = response.json()['data']
         if self.initial_lots:
             self.assertIn('auctionPeriod', auction['lots'][0])
@@ -584,10 +584,10 @@ class AuctionTest3(BaseAuctionWebTest):
             auctionPeriod = auction['auctionPeriod']['startDate']
             auction['auctionPeriod']['startDate'] = (datetime.now(TZ) - timedelta(hours=1)).isoformat()
         update_json(self.api, 'auction', self.auction_id, {"data": auction})
-        response = requests.patch(self.app.app.registry.api_url + 'auctions/' + self.auction_id, {
+        response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
             'data': {"id": "f547ece35436484e8656a2988fb52a44"}})
         self.assertEqual(response.status_code, 200)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         self.assertEqual(auction['status'], 'active.auction')
@@ -605,7 +605,7 @@ class AuctionTest3(BaseAuctionWebTest):
         response = self.app.get('/resync/' + self.auction_id)
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, None)
-        response = requests.get(self.app.app.registry.api_url + 'auctions/' + self.auction_id)
+        response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         response.json = response.json()
         auction = response.json['data']
         if self.initial_lots:
