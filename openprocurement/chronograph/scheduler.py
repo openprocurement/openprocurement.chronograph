@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import grequests
 import requests
+from copy import deepcopy
 from couchdb.http import ResourceConflict
 from datetime import datetime, timedelta
 from gevent.pool import Pool
@@ -70,7 +71,7 @@ def delete_holiday(db, day):
 
 
 def get_streams(db, streams_id=STREAMS_ID, classic_auction=True):
-        streams = db.get(streams_id, DEFAULT_STREAMS_DOC)
+        streams = db.get(streams_id, deepcopy(DEFAULT_STREAMS_DOC))
         if classic_auction:
             return streams.get('streams', DEFAULT_STREAMS_DOC['streams'])
         else:
@@ -79,7 +80,7 @@ def get_streams(db, streams_id=STREAMS_ID, classic_auction=True):
 
 
 def set_streams(db, streams=None, dutch_streams=None, streams_id=STREAMS_ID):
-    streams_doc = db.get(streams_id, DEFAULT_STREAMS_DOC)
+    streams_doc = db.get(streams_id, deepcopy(DEFAULT_STREAMS_DOC))
     if streams is not None:
         streams_doc['streams'] = streams
     if dutch_streams is not None:
