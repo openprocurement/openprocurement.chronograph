@@ -32,6 +32,8 @@ from pytz import timezone
 from random import randint
 from time import sleep
 
+from urllib import urlencode
+from collections import OrderedDict
 
 LOGGER = getLogger(__name__)
 TZ = timezone(environ['TZ'] if 'TZ' in environ else 'Europe/Kiev')
@@ -41,6 +43,9 @@ SESSION = requests.Session()
 SESSION.mount('http://', ADAPTER)
 SESSION.mount('https://', ADAPTER)
 POOL = Pool(1)
+
+BASIC_OPT_FIELDS = ['status', 'next_check']
+PLANNING_OPT_FIELDS = ['status', 'next_check', 'auctionPeriod', 'procurementMethodType', 'lots']
 
 
 def get_now():
@@ -456,8 +461,13 @@ def process_listing(auctions, scheduler, callback_url, db, check=True, planning=
 
 def resync_auctions(request):
     next_url = request.params.get('url', '')
-    if not next_url or 'opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check' not in next_url:
-        next_url = request.registry.full_url + '?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check'
+
+    opt_fields = ",".join(BASIC_OPT_FIELDS)
+    if request.registry.planning:
+        opt_fields = ",".join(PLANNING_OPT_FIELDS)
+    if not next_url or urlencode({"opt_fields": opt_fields}) not in next_url:
+        query = urlencode(OrderedDict(mode='_all_', feed='changes', descending=1, opt_fields=opt_fields))
+        next_url = '{}?{}'.format(request.registry.full_url, query)
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
@@ -498,8 +508,12 @@ def resync_auctions(request):
 
 def resync_auctions_back(request):
     next_url = request.params.get('url', '')
+    opt_fields = ",".join(BASIC_OPT_FIELDS)
+    if request.registry.planning:
+        opt_fields = ",".join(PLANNING_OPT_FIELDS)
     if not next_url:
-        next_url = request.registry.full_url + '?mode=_all_&feed=changes&descending=1&opt_fields=status%2CauctionPeriod%2CprocurementMethodType%2Clots%2Cnext_check'
+        query = urlencode(OrderedDict(mode='_all_', feed='changes', descending=1, opt_fields=opt_fields))
+        next_url = '{}?{}'.format(request.registry.full_url, query)
     scheduler = request.registry.scheduler
     api_token = request.registry.api_token
     callback_url = request.registry.callback_url
