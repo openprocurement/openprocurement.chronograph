@@ -9,8 +9,9 @@ import requests
 from iso8601 import parse_date
 
 from openprocurement.chronograph import TZ
+from openprocurement.chronograph.constants import DEFAULT_STREAMS_DOC
 from openprocurement.chronograph.tests.utils import update_json
-from openprocurement.chronograph.scheduler import planning_auction, free_slot, DEFAULT_STREAMS_DOC
+from openprocurement.chronograph.scheduler import planning_auction, free_slot
 from openprocurement.chronograph.tests.base import BaseWebTest, BaseAuctionWebTest
 from openprocurement.chronograph.tests.data import test_bids, test_lots, test_auction_data
 

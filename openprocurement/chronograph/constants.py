@@ -6,6 +6,7 @@ CALENDAR_ID = 'calendar'
 STREAMS_ID = 'streams'
 WORKING_DAY_START = time(11, 0)
 INSIDER_WORKING_DAY_START = time(9, 30)
+TEXAS_WORKING_DAY_START = time(10, 0)
 WORKING_DAY_END = time(16, 0)
 WORKING_DAY_DURATION = timedelta(minutes=480)
 ROUNDING = timedelta(minutes=29)
@@ -21,5 +22,6 @@ NOT_CLASSIC_AUCTIONS = ['dgfInsider', 'sellout.insider']
 DEFAULT_STREAMS_DOC = {
     '_id': STREAMS_ID,
     'streams': 10,
-    'dutch_streams': 15
+    'dutch_streams': 15,
+    'texas_streams': 20
 }
