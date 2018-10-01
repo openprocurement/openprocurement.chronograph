@@ -3,6 +3,8 @@ import unittest
 from copy import deepcopy
 from datetime import datetime, timedelta
 from logging import getLogger
+
+from openprocurement.chronograph.utils import get_manager_for_auction
 from time import sleep
 
 import requests
@@ -11,7 +13,7 @@ from iso8601 import parse_date
 from openprocurement.chronograph import TZ
 from openprocurement.chronograph.constants import DEFAULT_STREAMS_DOC
 from openprocurement.chronograph.tests.utils import update_json
-from openprocurement.chronograph.scheduler import planning_auction, free_slot
+from openprocurement.chronograph.scheduler import planning_auction
 from openprocurement.chronograph.tests.base import BaseWebTest, BaseAuctionWebTest
 from openprocurement.chronograph.tests.data import test_bids, test_lots, test_auction_data
 
@@ -634,7 +636,7 @@ class AuctionPlanning(BaseWebTest):
 
     def test_auction_quick_planning(self):
         now = datetime.now(TZ)
-        auctionPeriodstartDate = planning_auction(test_auction_data_test_quick, now, self.db, True)[0]
+        auctionPeriodstartDate = planning_auction(test_auction_data_test_quick, self.mapper, now, self.db, True)[0]
         self.assertTrue(now < auctionPeriodstartDate < now + timedelta(hours=1))
 
     def test_auction_quick_planning_insider(self):
@@ -642,7 +644,7 @@ class AuctionPlanning(BaseWebTest):
         my_test_auction = deepcopy(test_auction_data_test_quick)
         my_test_auction['procurementMethodType'] = 'dgfInsider'
         auctionPeriodstartDate = planning_auction(
-            my_test_auction, now, self.db, True
+            my_test_auction, self.mapper, now, self.db, True
         )[0]
         self.assertTrue(
             now < auctionPeriodstartDate < now + timedelta(hours=1)
@@ -652,45 +654,46 @@ class AuctionPlanning(BaseWebTest):
         now = datetime.now(TZ)
         my_test_auction = deepcopy(test_auction_data_test_quick)
         my_test_auction['procurementMethodType'] = 'dgfInsider'
-        res = planning_auction(my_test_auction, now, self.db)[0]
+        res = planning_auction(my_test_auction, self.mapper, now, self.db)[0]
         startDate = res.date()
         count = 0
         while startDate == res.date():
             count += 1
-            res = planning_auction(my_test_auction, now, self.db)[0]
+            res = planning_auction(my_test_auction, self.mapper, now, self.db)[0]
         self.assertEqual(count, 15)
 
     def test_auction_planning_overlow(self):
         now = datetime.now(TZ)
-        res = planning_auction(test_auction_data_test_quick, now, self.db)[0]
+        res = planning_auction(test_auction_data_test_quick, self.mapper, now, self.db)[0]
         startDate = res.date()
         count = 0
         while startDate == res.date():
             count += 1
-            res = planning_auction(test_auction_data_test_quick, now, self.db)[0]
+            res = planning_auction(test_auction_data_test_quick, self.mapper, now, self.db)[0]
         self.assertEqual(count, 100)
 
     def test_auction_planning_free(self):
         now = datetime.now(TZ)
         test_auction_data_test_quick.pop("id")
-        res = planning_auction(test_auction_data_test_quick, now, self.db)[0]
+        res = planning_auction(test_auction_data_test_quick, self.mapper, now, self.db)[0]
         startDate, startTime = res.date(), res.time()
-        free_slot(self.db, "plantest_{}".format(startDate.isoformat()), res, "")
-        res = planning_auction(test_auction_data_test_quick, now, self.db)[0]
+        manager = get_manager_for_auction(test_auction_data, self.mapper)
+        manager.free_slot(self.db, "plantest_{}".format(startDate.isoformat()), "", res)
+        res = planning_auction(test_auction_data_test_quick, self.mapper, now, self.db)[0]
         self.assertEqual(res.time(), startTime)
 
     def test_auction_planning_buffer(self):
         some_date = datetime(2015, 9, 21, 6, 30)
         date = some_date.date()
         ndate = (some_date + timedelta(days=1)).date()
-        res = planning_auction(test_auction_data_test_quick, some_date, self.db)[0]
+        res = planning_auction(test_auction_data_test_quick, self.mapper, some_date, self.db)[0]
         self.assertEqual(res.date(), date)
         some_date = some_date.replace(hour=10)
-        res = planning_auction(test_auction_data_test_quick, some_date, self.db)[0]
+        res = planning_auction(test_auction_data_test_quick, self.mapper, some_date, self.db)[0]
         self.assertNotEqual(res.date(), date)
         self.assertEqual(res.date(), ndate)
         some_date = some_date.replace(hour=16)
-        res = planning_auction(test_auction_data_test_quick, some_date, self.db)[0]
+        res = planning_auction(test_auction_data_test_quick, self.mapper, some_date, self.db)[0]
         self.assertNotEqual(res.date(), date)
         self.assertEqual(res.date(), ndate)
 

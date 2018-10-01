@@ -34,7 +34,7 @@ SESSION.mount('http://', ADAPTER)
 SESSION.mount('https://', ADAPTER)
 
 BASIC_OPT_FIELDS = ['status', 'next_check']
-PLANNING_OPT_FIELDS = ['status', 'next_check', 'auctionPeriod', 'procurementMethodType', 'lots']
+PLANNING_OPT_FIELDS = ['status', 'next_check', 'auctionPeriod', 'procurementMethodType', 'lots', 'auctionParameters']
 
 
 def planning_auction(auction, mapper, start, db, quick=False, lot_id=None):

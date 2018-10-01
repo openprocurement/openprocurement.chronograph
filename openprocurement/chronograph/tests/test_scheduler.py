@@ -3,6 +3,7 @@ import unittest
 from ConfigParser import ConfigParser
 from couchdb import Server
 from datetime import datetime
+from openprocurement.chronograph import MANAGERS_MAPPING
 from openprocurement.chronograph.scheduler import check_inner_auction, TZ
 from openprocurement.chronograph.tests.data import plantest
 from openprocurement.chronograph.design import sync_design
@@ -55,7 +56,11 @@ class SchedulerTest(unittest.TestCase):
         # Test insider
         self.assertEqual(len(plantest.get('dutch_streams', [])), 15)
         self.assertIn(insider_auction_id, plantest.get('dutch_streams'))
-        check_inner_auction(self.db, auction)
+        mapper = {
+            'pmts': {'dgfInsider': MANAGERS_MAPPING['insider']()},
+            'types': {'english': MANAGERS_MAPPING['english']()}
+        }
+        check_inner_auction(self.db, auction, mapper)
         plantest = self.db.get('plantest_{}'.format(today))
         self.assertEqual(len(plantest.get('dutch_streams', [])), 6)
         self.assertNotIn(insider_auction_id, plantest.get('dutch_streams'))
@@ -81,7 +86,7 @@ class SchedulerTest(unittest.TestCase):
             [v for k, v in plantest.get('stream_2').items() if v is None])
         self.assertEqual(stream_1_none_count, 0)
         self.assertEqual(stream_2_none_count, 0)
-        check_inner_auction(self.db, auction)
+        check_inner_auction(self.db, auction, mapper)
         plantest = self.db.get('plantest_{}'.format(today))
         self.assertEqual(len(plantest.get('stream_1')), 10)
         self.assertEqual(len(plantest.get('stream_2')), 10)
@@ -99,7 +104,7 @@ class SchedulerTest(unittest.TestCase):
         # Test classic without lots
         del auction['lots']
         auction['id'] = classic_auction_without_lots
-        check_inner_auction(self.db, auction)
+        check_inner_auction(self.db, auction, mapper)
         plantest = self.db.get('plantest_{}'.format(today))
         self.assertEqual(len(plantest.get('stream_1')), 10)
         self.assertEqual(len(plantest.get('stream_2')), 10)
