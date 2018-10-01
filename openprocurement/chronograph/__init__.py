@@ -8,7 +8,9 @@ from couchdb import Server, Session
 from couchdb.http import Unauthorized, extract_credentials
 from datetime import datetime, timedelta
 #from openprocurement.chronograph.jobstores import CouchDBJobStore
+from openprocurement.chronograph.constants import AUCTIONS
 from openprocurement.chronograph.design import sync_design
+from openprocurement.chronograph.managers import MANAGERS_MAPPING
 from openprocurement.chronograph.scheduler import push
 from openprocurement.chronograph.utils import add_logging_context, get_full_url
 from pyramid.config import Configurator
@@ -107,6 +109,13 @@ def main(global_config, **settings):
         # sync couchdb views
         sync_design(db)
     config.registry.db = db
+
+    config.registry.manager_mapper = {'types': {}, 'pmts': {}}
+    for auction in AUCTIONS:
+        auction_manager = MANAGERS_MAPPING[auction['type']]()
+        config.registry.manager_mapper['types'][auction['type']] = auction_manager
+        if auction.get('pmts', []):
+            config.registry.manager_mapper['pmts'].update({pmt: auction_manager for pmt in auction.get('pmts')})
 
     jobstores = {
         #'default': CouchDBJobStore(database=db_name, client=server)

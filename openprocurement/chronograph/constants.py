@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 from datetime import timedelta, time
 
-
 CALENDAR_ID = 'calendar'
 STREAMS_ID = 'streams'
 WORKING_DAY_START = time(11, 0)
 INSIDER_WORKING_DAY_START = time(9, 30)
 TEXAS_WORKING_DAY_START = time(10, 0)
 WORKING_DAY_END = time(16, 0)
-WORKING_DAY_DURATION = timedelta(minutes=480)
+INSIDER_WORKING_DAY_DURATION = timedelta(minutes=480)
+TEXAS_WORKING_DAY_DURATION = timedelta(hours=7)  # Does not affect anything
 ROUNDING = timedelta(minutes=29)
 MIN_PAUSE = timedelta(minutes=3)
 BIDDER_TIME = timedelta(minutes=6)
@@ -25,3 +25,17 @@ DEFAULT_STREAMS_DOC = {
     'dutch_streams': 15,
     'texas_streams': 20
 }
+
+AUCTIONS = [
+    {
+        'type': 'insider',
+        'pmts': ['dgfInsider', 'sellout.insider']
+    },
+    {
+        'type': 'texas',
+        'pmts': ['landLease']
+    },
+    {
+        'type': 'english'
+    }
+]

@@ -257,3 +257,14 @@ def get_request(url, auth, session, headers=None):
         sleep(tx)
         tx, ty = ty, tx + ty
     return r
+
+
+def get_manager_for_auction(auction, mapper):
+    default_manager = mapper['types'].get('english', None)
+
+    auction_type = auction.get('auctionParameters', {}).get('type', None)
+    if auction_type:
+        return mapper['types'].get(auction_type, default_manager)
+    else:
+        pmt = auction.get('procurementMethodType')
+        return mapper['pmts'].get(pmt, default_manager)
