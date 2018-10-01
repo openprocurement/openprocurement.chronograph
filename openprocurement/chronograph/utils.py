@@ -6,7 +6,6 @@ from time import sleep
 
 import grequests
 import requests
-from couchdb.http import ResourceConflict
 from gevent.pool import Pool
 from iso8601 import parse_date
 from pytz import timezone
@@ -16,7 +15,6 @@ from openprocurement.chronograph.constants import (
     CALENDAR_ID,
     STREAMS_ID,
     WORKING_DAY_START,
-    INSIDER_WORKING_DAY_START,
     ROUNDING,
     MIN_PAUSE,
     BIDDER_TIME,
@@ -110,12 +108,16 @@ def delete_holiday(db, day):
 
 
 def get_streams(db, streams_id=STREAMS_ID, classic_auction=True):
-        streams = db.get(streams_id, deepcopy(DEFAULT_STREAMS_DOC))
-        if classic_auction:
-            return streams.get('streams', DEFAULT_STREAMS_DOC['streams'])
-        else:
-            return streams.get('dutch_streams',
-                               DEFAULT_STREAMS_DOC['dutch_streams'])
+    """
+    Backward compatibility version of managers.BaseAuctionsManager method,
+    which is left due to views.streams_view dependency
+    """
+    streams = db.get(streams_id, deepcopy(DEFAULT_STREAMS_DOC))
+    if classic_auction:
+        return streams.get('streams', DEFAULT_STREAMS_DOC['streams'])
+    else:
+        return streams.get('dutch_streams',
+                           DEFAULT_STREAMS_DOC['dutch_streams'])
 
 
 def set_streams(db, streams=None, dutch_streams=None, streams_id=STREAMS_ID):
@@ -125,37 +127,6 @@ def set_streams(db, streams=None, dutch_streams=None, streams_id=STREAMS_ID):
     if dutch_streams is not None:
         streams_doc['dutch_streams'] = dutch_streams
     db.save(streams_doc)
-
-
-def get_date(db, mode, date, classic_auction=True):
-    plan_id = 'plan{}_{}'.format(mode, date.isoformat())
-    plan = db.get(plan_id, {'_id': plan_id})
-    if classic_auction:
-        plan_date_end = plan.get('time', WORKING_DAY_START.isoformat())
-        stream = plan.get('streams', 1)
-    else:
-        plan_date_end = INSIDER_WORKING_DAY_START.isoformat()
-        stream = len(plan.get('dutch_streams', []))
-    plan_date = parse_date(date.isoformat() + 'T' + plan_date_end, None)
-    plan_date = plan_date.astimezone(TZ) if plan_date.tzinfo else TZ.localize(plan_date)
-    return plan_date.time(), stream, plan
-
-
-def set_date(db, plan, end_time, cur_stream, auction_id, start_time,
-             new_slot=True, classic_auction=True):
-    if classic_auction:
-        if new_slot:
-            plan['time'] = end_time.isoformat()
-            plan['streams'] = cur_stream
-        stream_id = 'stream_{}'.format(cur_stream)
-        stream = plan.get(stream_id, {})
-        stream[start_time.isoformat()] = auction_id
-        plan[stream_id] = stream
-    else:
-        dutch_streams = plan.get('dutch_streams', [])
-        dutch_streams.append(auction_id)
-        plan['dutch_streams'] = dutch_streams
-    db.save(plan)
 
 
 def calc_auction_end_time(bids, start):
@@ -175,36 +146,6 @@ def find_free_slot(plan):
                 plan_date = parse_date(plan['_id'].split('_')[1] + 'T' + slot, None)
                 plan_date = plan_date.astimezone(TZ) if plan_date.tzinfo else TZ.localize(plan_date)
                 return plan_date, cur_stream
-
-
-def free_slot(db, plan_id, plan_time, auction_id, classic_auction=True):
-    slot = plan_time.time().isoformat()
-    done = False
-    while not done:
-        try:
-            plan = db.get(plan_id)
-            if classic_auction:
-                streams = plan['streams']
-                for cur_stream in range(1, streams + 1):
-                    stream_id = 'stream_{}'.format(cur_stream)
-                    if plan[stream_id].get(slot) == auction_id:
-                        plan[stream_id][slot] = None
-            else:
-                slots = plan.get('dutch_streams', [])
-                pops = []
-                for i in xrange(0, len(slots)):
-                    if slots[i] == auction_id:
-                        pops.append(i)
-                pops.sort(reverse=True)
-                for p in pops:
-                    slots.pop(p)
-                plan['dutch_streams'] = slots
-            db.save(plan)
-            done = True
-        except ResourceConflict:
-            done = False
-        except:
-            done = True
 
 
 def update_next_check_job(next_check, scheduler, auction_id,

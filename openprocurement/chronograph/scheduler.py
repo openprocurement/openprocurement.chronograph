@@ -1,24 +1,21 @@
 # -*- coding: utf-8 -*-
 import requests
 from couchdb.http import ResourceConflict
-from datetime import datetime, timedelta
+from datetime import timedelta
 from iso8601 import parse_date
 from json import dumps
 from logging import getLogger
 from openprocurement.chronograph.utils import (
-    context_unpack, update_next_check_job, push, get_request,
-    calc_auction_end_time, get_calendar, skipped_days, get_streams,
-    get_date, find_free_slot, set_date, randomize, get_now, free_slot
+    context_unpack, update_next_check_job, push,
+    get_request, calc_auction_end_time, get_calendar,
+    skipped_days, randomize, get_now, get_manager_for_auction
 )
 from openprocurement.chronograph.design import plan_auctions_view
 from openprocurement.chronograph.constants import (
     WORKING_DAY_START,
-    WORKING_DAY_END,
-    WORKING_DAY_DURATION,
     SMOOTHING_MIN,
     SMOOTHING_REMIN,
     SMOOTHING_MAX,
-    NOT_CLASSIC_AUCTIONS,
 )
 from os import environ
 from pytz import timezone
@@ -40,63 +37,38 @@ BASIC_OPT_FIELDS = ['status', 'next_check']
 PLANNING_OPT_FIELDS = ['status', 'next_check', 'auctionPeriod', 'procurementMethodType', 'lots']
 
 
-def planning_auction(auction, start, db, quick=False, lot_id=None):
+def planning_auction(auction, mapper, start, db, quick=False, lot_id=None):
     tid = auction.get('id', '')
     mode = auction.get('mode', '')
-    classic_auction = auction.get('procurementMethodType') not in \
-        NOT_CLASSIC_AUCTIONS
+    manager = get_manager_for_auction(auction, mapper)
     skipped_days = 0
     if quick:
         quick_start = calc_auction_end_time(0, start)
-        return (quick_start, 0, skipped_days)
+        return quick_start, 0, skipped_days
     calendar = get_calendar(db)
-    streams = get_streams(db, classic_auction=classic_auction)
+    streams = manager.get_streams(db)
     start += timedelta(hours=1)
     if start.time() > WORKING_DAY_START:
         nextDate = start.date() + timedelta(days=1)
     else:
         nextDate = start.date()
-    new_slot = True
     while True:
         # skip Saturday and Sunday
         if calendar.get(nextDate.isoformat()) or nextDate.weekday() in [5, 6]:
             nextDate += timedelta(days=1)
             continue
-        dayStart, stream, plan = get_date(db, mode, nextDate,
-                                          classic_auction=classic_auction)
-        if not classic_auction:  # dgfInsider
-            if stream < streams:
-                start = TZ.localize(datetime.combine(nextDate, dayStart))
-                end = start + WORKING_DAY_DURATION
-                break
-        else:                    # classic_auction
-            freeSlot = find_free_slot(plan)
-            if freeSlot:
-                startDate, stream = freeSlot
-                start, end, dayStart, new_slot = startDate, startDate, startDate.time(), False
-                break
-            if dayStart >= WORKING_DAY_END and stream < streams:
-                stream += 1
-                dayStart = WORKING_DAY_START
-
-            start = TZ.localize(datetime.combine(nextDate, dayStart))
-            end = start + timedelta(minutes=30)
-            # end = calc_auction_end_time(auction.get('numberOfBids', len(auction.get('bids', []))), start)
-            if dayStart == WORKING_DAY_START and end > TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)) and stream <= streams:
-                break
-            elif end <= TZ.localize(datetime.combine(nextDate, WORKING_DAY_END)) and stream <= streams:
-                break
+        dayStart, stream, plan = manager.get_date(db, mode, nextDate)
+        result = manager.set_end_of_auction(stream, streams, nextDate, dayStart, plan)
+        if result:
+            start, end, dayStart, stream, new_slot = result
+            break
         nextDate += timedelta(days=1)
         skipped_days += 1
-    #for n in range((end.date() - start.date()).days):
-        #date = start.date() + timedelta(n)
-        #_, dayStream = get_date(db, mode, date.date())
-        #set_date(db, mode, date.date(), WORKING_DAY_END, dayStream+1)
-    set_date(db, plan, end.time(), stream, "_".join([tid, lot_id]) if lot_id else tid, dayStart, new_slot, classic_auction)
-    return (start, stream, skipped_days)
+    manager.set_date(db, plan, "_".join([tid, lot_id]) if lot_id else tid, end.time(), stream, dayStart, new_slot)
+    return start, stream, skipped_days
 
 
-def check_auction(request, auction, db):
+def check_auction(request, auction, db, mapper):
     now = get_now()
     quick = environ.get('SANDBOX_MODE', False) and u'quick' in auction.get('submissionMethodDetails', '')
     if not auction.get('lots') and 'shouldStartAfter' in auction.get('auctionPeriod', {}) and auction['auctionPeriod']['shouldStartAfter'] > auction['auctionPeriod'].get('startDate'):
@@ -105,7 +77,7 @@ def check_auction(request, auction, db):
         planned = False
         while not planned:
             try:
-                auctionPeriod, stream, skip_days = planning_auction(auction, shouldStartAfter, db, quick)
+                auctionPeriod, stream, skip_days = planning_auction(auction, mapper, shouldStartAfter, db, quick)
                 planned = True
             except ResourceConflict:
                 planned = False
@@ -128,7 +100,7 @@ def check_auction(request, auction, db):
             planned = False
             while not planned:
                 try:
-                    auctionPeriod, stream, skip_days = planning_auction(auction, shouldStartAfter, db, quick, lot_id)
+                    auctionPeriod, stream, skip_days = planning_auction(auction, mapper, shouldStartAfter, db, quick, lot_id)
                     planned = True
                 except ResourceConflict:
                     planned = False
@@ -167,7 +139,7 @@ def resync_auction(request):
     else:
         json = r.json()
         auction = json['data']
-        changes = check_auction(request, auction, db)
+        changes = check_auction(request, auction, db, request.registry.manager_mapper)
         if changes:
             data = dumps({'data': changes})
             r = SESSION.patch(url,
@@ -214,9 +186,9 @@ def recheck_auction(request):
     return next_check and next_check.isoformat()
 
 
-def check_inner_auction(db, auction):
-    classic_auction = \
-        auction.get('procurementMethodType') not in NOT_CLASSIC_AUCTIONS
+def check_inner_auction(db, auction, mapper):
+    manager = get_manager_for_auction(auction, mapper)
+
     auction_time = auction.get('auctionPeriod', {}).get('startDate') and \
         parse_date(auction.get('auctionPeriod', {}).get('startDate'))
     lots = dict([
@@ -233,19 +205,18 @@ def check_inner_auction(db, auction):
         if not key and (not auction_time or not
                         plan_time < auction_time < plan_time +
                         timedelta(minutes=30)):
-            free_slot(db, plan_doc, plan_time, auction['id'], classic_auction)
+            manager.free_slot(db, plan_doc, auction['id'], plan_time)
         elif key and (not lots.get(key) or lots.get(key) and not
                       plan_time < lots.get(key) < plan_time +
                       timedelta(minutes=30)):
-            free_slot(db, plan_doc, plan_time, "_".join([auction['id'], key]),
-                      classic_auction)
+            manager.free_slot(db, plan_doc, "_".join([auction['id'], key]), plan_time)
 
 
-def process_listing(auctions, scheduler, callback_url, db, check=True, planning=True):
+def process_listing(auctions, scheduler, callback_url, db, mapper, check=True, planning=True):
     run_date = get_now()
     for auction in auctions:
         if check:
-            check_inner_auction(db, auction)
+            check_inner_auction(db, auction, mapper)
         tid = auction['id']
         next_check = auction.get('next_check')
         if next_check:
@@ -297,7 +268,8 @@ def resync_auctions(request):
                     next_url = json['prev_page']['uri']
             if not json['data']:
                 break
-            process_listing(json['data'], scheduler, callback_url, request.registry.db, planning=request.registry.planning)
+            process_listing(json['data'], scheduler, callback_url, request.registry.db,
+                            request.registry.manager_mapper, planning=request.registry.planning)
             sleep(0.1)
         except Exception as e:
             LOGGER.error("Error on resync all: {}".format(repr(e)), extra=context_unpack(request, {'MESSAGE_ID': 'error_resync_all'}))
@@ -335,7 +307,8 @@ def resync_auctions_back(request):
             if not json['data']:
                 LOGGER.info("Resync back stopped", extra=context_unpack(request, {'MESSAGE_ID': 'resync_back_stoped'}))
                 return next_url
-            process_listing(json['data'], scheduler, callback_url, request.registry.db, False, request.registry.planning)
+            process_listing(json['data'], scheduler, callback_url, request.registry.db,
+                            request.registry.manager_mapper, False, request.registry.planning)
             sleep(0.1)
         except Exception as e:
             LOGGER.error("Error on resync back: {}".format(repr(e)), extra=context_unpack(request, {'MESSAGE_ID': 'error_resync_back'}))
