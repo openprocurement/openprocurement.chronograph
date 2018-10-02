@@ -106,6 +106,7 @@ class BaseWebTest(unittest.TestCase):
         self.app.app.registry.full_url = get_full_url(self.app.app.registry)
         self.couchdb_server = self.app.app.registry.couchdb_server
         self.db = self.app.app.registry.db
+        self.mapper = self.app.app.registry.manager_mapper
         if not self.scheduler:
             self.app.app.registry.scheduler.shutdown()
 

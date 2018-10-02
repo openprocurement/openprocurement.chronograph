@@ -1,14 +1,14 @@
 from pyramid.view import view_config
 from openprocurement.chronograph.scheduler import (
-    delete_holiday,
     get_calendar,
-    get_streams,
     recheck_auction,
     resync_auction,
     resync_auctions,
     resync_auctions_back,
-    set_holiday,
-    set_streams,
+)
+from openprocurement.chronograph.utils import (
+    set_holiday, delete_holiday,
+    get_streams, set_streams
 )
 
 
