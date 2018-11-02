@@ -11,7 +11,7 @@ def sync_design(db):
 
 
 plan_auctions_view = ViewDefinition('plan', 'auctions', '''function(doc) {
-    if(doc.streams || doc.dutch_streams) {
+    if(doc.streams || doc.dutch_streams || doc.texas_streams) {
         for (var i in doc) {
             if (i.indexOf('stream_') == 0) {
                 for (var t in doc[i]) {
