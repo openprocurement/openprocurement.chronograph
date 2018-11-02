@@ -3,6 +3,8 @@ import unittest
 from ConfigParser import ConfigParser
 from couchdb import Server
 from datetime import datetime
+from iso8601 import parse_date
+
 from openprocurement.chronograph import MANAGERS_MAPPING
 from openprocurement.chronograph.scheduler import check_inner_auction, TZ
 from openprocurement.chronograph.tests.data import plantest
@@ -37,12 +39,19 @@ class SchedulerTest(unittest.TestCase):
 
     def test_check_inner_auction(self):
         insider_auction_id = '01fa8a7dc4b8eac3b5820747efc6fe36'
+        texas_auction_id = 'dc3d950743304d05adaa1cd5b0475075'
         classic_auction_with_lots = 'da8a28ed2bdf73ee1d373e4cadfed4c5'
         classic_auction_without_lots = 'e51508cddc2c490005eaecb73c006b72'
         lots_ids = ['1c2fb1e496b317b2b87e197e2332da77',
                     'b10f9f7f26157ae2f349be8dc2106d6e']
+
         today = datetime.now().date().isoformat()
-        test_time = today + ' ' + '12:20:00.000+03:00'
+        time = '12:15:00'  # actually, can be any time between 12:00:00 and 12:30:00 due to existing asserts
+        raw_time = ''.join([today, 'T', time])
+
+        # datetime.datetime object prepared in the way scheduler actually does it:
+        test_time = TZ.localize(parse_date(raw_time, None)).isoformat()
+
         auction = {
             'id': insider_auction_id,
             'procurementMethodType': 'dgfInsider',
@@ -50,20 +59,36 @@ class SchedulerTest(unittest.TestCase):
                 'startDate': test_time
             }
         }
+        mapper = {
+            'pmts': {
+                'dgfInsider': MANAGERS_MAPPING['insider'](),
+                'landLease': MANAGERS_MAPPING['texas']()
+            },
+            'types': {'english': MANAGERS_MAPPING['english']()}
+        }
 
         plantest = self.db.get('plantest_{}'.format(today))
 
         # Test insider
         self.assertEqual(len(plantest.get('dutch_streams', [])), 15)
         self.assertIn(insider_auction_id, plantest.get('dutch_streams'))
-        mapper = {
-            'pmts': {'dgfInsider': MANAGERS_MAPPING['insider']()},
-            'types': {'english': MANAGERS_MAPPING['english']()}
-        }
+
         check_inner_auction(self.db, auction, mapper)
         plantest = self.db.get('plantest_{}'.format(today))
         self.assertEqual(len(plantest.get('dutch_streams', [])), 6)
         self.assertNotIn(insider_auction_id, plantest.get('dutch_streams'))
+
+        # Test texas
+        auction['id'] = texas_auction_id
+        auction['procurementMethodType'] = 'landLease'
+
+        self.assertEqual(len(plantest.get('texas_streams', [])), 20)
+        self.assertIn(texas_auction_id, plantest.get('texas_streams'))
+
+        check_inner_auction(self.db, auction, mapper)
+        plantest = self.db.get('plantest_{}'.format(today))
+        self.assertEqual(len(plantest.get('texas_streams', [])), 15)
+        self.assertNotIn(texas_auction_id, plantest.get('texas_streams'))
 
         # Test classic with lots
         auction['procurementMethodType'] = 'classic'
