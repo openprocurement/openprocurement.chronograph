@@ -11,7 +11,7 @@ import requests
 from iso8601 import parse_date
 
 from openprocurement.chronograph import TZ
-from openprocurement.chronograph.constants import DEFAULT_STREAMS_DOC
+from openprocurement.chronograph.constants import DEFAULT_STREAMS_DOC, WORKING_DAY_START
 from openprocurement.chronograph.tests.utils import update_json
 from openprocurement.chronograph.scheduler import planning_auction
 from openprocurement.chronograph.tests.base import BaseWebTest, BaseAuctionWebTest
@@ -578,14 +578,15 @@ class AuctionTest3(BaseAuctionWebTest):
 
         response = requests.get('{}/{}'.format(self.app.app.registry.full_url, self.auction_id))
         auction = response.json()['data']
+        date_time = TZ.localize(datetime.combine(datetime.now().date(), WORKING_DAY_START))
         if self.initial_lots:
             self.assertIn('auctionPeriod', auction['lots'][0])
             auctionPeriod = auction['lots'][0]['auctionPeriod']['startDate']
-            auction['lots'][0]['auctionPeriod']['startDate'] = (datetime.now(TZ) - timedelta(hours=1)).isoformat()
+            auction['lots'][0]['auctionPeriod']['startDate'] = date_time.isoformat()
         else:
             self.assertIn('auctionPeriod', auction)
             auctionPeriod = auction['auctionPeriod']['startDate']
-            auction['auctionPeriod']['startDate'] = (datetime.now(TZ) - timedelta(hours=1)).isoformat()
+            auction['auctionPeriod']['startDate'] = date_time.isoformat()
         update_json(self.api, 'auction', self.auction_id, {"data": auction})
         response = requests.patch('{}/{}'.format(self.app.app.registry.full_url, self.auction_id), {
             'data': {"id": "f547ece35436484e8656a2988fb52a44"}})
