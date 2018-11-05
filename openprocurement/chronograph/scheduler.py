@@ -48,7 +48,7 @@ def planning_auction(auction, mapper, start, db, quick=False, lot_id=None):
     calendar = get_calendar(db)
     streams = manager.get_streams(db)
     start += timedelta(hours=1)
-    if start.time() > WORKING_DAY_START:
+    if start.time() > manager.working_day_start:
         nextDate = start.date() + timedelta(days=1)
     else:
         nextDate = start.date()
