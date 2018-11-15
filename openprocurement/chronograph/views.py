@@ -1,4 +1,6 @@
 from pyramid.view import view_config
+
+from openprocurement.chronograph.constants import STREAMS_KEYS
 from openprocurement.chronograph.scheduler import (
     get_calendar,
     recheck_auction,
@@ -63,22 +65,20 @@ def calendar_entry_view(request):
 @view_config(route_name='streams', renderer='json')
 def streams_view(request):
     if request.method == 'GET':
-        classic_auction = request.params.get('dutch_streams', '') not in [
-            'True', 'true', 'y', 'yes', 'Yes'
-        ]
-        return get_streams(request.registry.db,
-                           classic_auction=classic_auction)
+        for stream_key in STREAMS_KEYS:
+            if request.params.get(stream_key, '') in [
+                'True', 'true', 'y', 'yes', 'Yes'
+            ]:
+                break
+        else:
+            stream_key = 'streams'
+        return get_streams(request.registry.db, stream_key)
     elif request.method == 'POST':
-        streams = request.params.get('streams', '')
-        dutch_streams = request.params.get('dutch_streams', '')
         result = False
-        if streams and streams.isdigit():
-            set_streams(request.registry.db,
-                        streams=int(streams))
-            result = True
-        if dutch_streams and dutch_streams.isdigit():
-            set_streams(request.registry.db,
-                        dutch_streams=int(dutch_streams))
-            result = True
+        for stream_key in STREAMS_KEYS:
+            streams = request.params.get(stream_key, '')
+            if streams and streams.isdigit():
+                set_streams(request.registry.db, int(streams), stream_key)
+                result = True
         return result
     return False
