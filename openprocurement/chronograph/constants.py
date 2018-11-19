@@ -19,6 +19,7 @@ SMOOTHING_REMIN = 60
 # value should be greater than SMOOTHING_MIN and SMOOTHING_REMIN
 SMOOTHING_MAX = 300
 NOT_CLASSIC_AUCTIONS = ['dgfInsider', 'sellout.insider']
+STREAMS_KEYS = ['streams', 'dutch_streams', 'texas_streams']
 DEFAULT_STREAMS_DOC = {
     '_id': STREAMS_ID,
     'streams': 10,

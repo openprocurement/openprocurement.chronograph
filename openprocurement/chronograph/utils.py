@@ -107,25 +107,19 @@ def delete_holiday(db, day):
         db.save(calendar)
 
 
-def get_streams(db, streams_id=STREAMS_ID, classic_auction=True):
+def get_streams(db, stream_key='streams', streams_id=STREAMS_ID):
     """
     Backward compatibility version of managers.BaseAuctionsManager method,
     which is left due to views.streams_view dependency
     """
     streams = db.get(streams_id, deepcopy(DEFAULT_STREAMS_DOC))
-    if classic_auction:
-        return streams.get('streams', DEFAULT_STREAMS_DOC['streams'])
-    else:
-        return streams.get('dutch_streams',
-                           DEFAULT_STREAMS_DOC['dutch_streams'])
+    return streams.get(stream_key, DEFAULT_STREAMS_DOC[stream_key])
 
 
-def set_streams(db, streams=None, dutch_streams=None, streams_id=STREAMS_ID):
+def set_streams(db, streams=None, stream_key=None, streams_id=STREAMS_ID):
     streams_doc = db.get(streams_id, deepcopy(DEFAULT_STREAMS_DOC))
-    if streams is not None:
-        streams_doc['streams'] = streams
-    if dutch_streams is not None:
-        streams_doc['dutch_streams'] = dutch_streams
+    if streams is not None and stream_key is not None:
+        streams_doc[stream_key] = streams
     db.save(streams_doc)
 
 

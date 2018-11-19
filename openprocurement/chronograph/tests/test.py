@@ -90,6 +90,10 @@ class SimpleTest(BaseWebTest):
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, DEFAULT_STREAMS_DOC['dutch_streams'])
 
+        response = self.app.get('/streams?texas_streams=true')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, DEFAULT_STREAMS_DOC['texas_streams'])
+
         # POST /streams
         response = self.app.post('/streams', {'streams': 20})
         self.assertEqual(response.status, '200 OK')
@@ -111,14 +115,29 @@ class SimpleTest(BaseWebTest):
         self.assertEqual(response.json, 21)
 
         # POST /streams
+        response = self.app.post('/streams', {'texas_streams': 42})
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, True)
+
+        # GET /streams
+        response = self.app.get('/streams?texas_streams=true')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, 42)
+
+
+        # POST /streams
         response = self.app.post('/streams', {'streams': -20})
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, False)
         response = self.app.post('/streams', {'dutch_streams': -20})
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, False)
+        response = self.app.post('/streams', {'texas_streams': -20})
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, False)
         response = self.app.post('/streams', {'streams': 11,
-                                              'dutch_streams': 12})
+                                              'dutch_streams': 12,
+                                              'texas_streams': 13})
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, True)
 
@@ -130,6 +149,10 @@ class SimpleTest(BaseWebTest):
         response = self.app.get('/streams?dutch_streams=true')
         self.assertEqual(response.status, '200 OK')
         self.assertEqual(response.json, 12)
+
+        response = self.app.get('/streams?texas_streams=true')
+        self.assertEqual(response.status, '200 OK')
+        self.assertEqual(response.json, 13)
 
         # POST /streams
         response = self.app.patch('/streams')
