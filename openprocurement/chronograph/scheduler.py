@@ -178,7 +178,7 @@ def recheck_auction(request):
         LOGGER.error("Error {} on checking auction '{}': {}".format(r.status_code, url, r.text),
                      extra=context_unpack(request, {'MESSAGE_ID': 'error_check_auction'}, {'ERROR_STATUS': r.status_code}))
         if r.status_code not in [requests.codes.forbidden, requests.codes.not_found]:
-            next_check = get_now() + timedelta(minutes=1)
+            next_check = (get_now() + timedelta(minutes=1)).isoformat()
     elif r.json():
         next_check = r.json()['data'].get('next_check')
     if next_check:
