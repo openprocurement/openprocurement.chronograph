@@ -62,15 +62,17 @@ def main(global_config, **settings):
     config.registry.api_token = os.environ.get('API_TOKEN', settings.get('api.token'))
 
     db_name = os.environ.get('DB_NAME', settings['couchdb.db_name'])
-    server = Server(settings.get('couchdb.url'), session=Session(retry_delays=range(60)))
-    if 'couchdb.admin_url' not in settings and server.resource.credentials:
+    couchdb_url = os.environ.get('COUCHDB_URL', settings.get('couchdb.url'))
+    server = Server(couchdb_url, session=Session(retry_delays=range(60)))
+    couchdb_admin_url = os.environ.get('COUCHDB_ADMIN_URL', settings.get('couchdb.admin_url'))
+    if not couchdb_admin_url and server.resource.credentials:
         try:
             server.version()
         except Unauthorized:
-            server = Server(extract_credentials(settings.get('couchdb.url'))[0], session=Session(retry_delays=range(60)))
+            server = Server(extract_credentials(couchdb_url)[0], session=Session(retry_delays=range(60)))
     config.registry.couchdb_server = server
-    if 'couchdb.admin_url' in settings and server.resource.credentials:
-        aserver = Server(settings.get('couchdb.admin_url'), session=Session(retry_delays=range(10)))
+    if couchdb_admin_url and server.resource.credentials:
+        aserver = Server(couchdb_admin_url, session=Session(retry_delays=range(10)))
         users_db = aserver['_users']
         if SECURITY != users_db.security:
             LOGGER.info("Updating users db security", extra={'MESSAGE_ID': 'update_users_security'})
@@ -129,7 +131,7 @@ def main(global_config, **settings):
         'max_instances': 3
     }
     config.registry.api_url = settings.get('api.url')
-    config.registry.api_resource = settings.get('api.resource', 'auctions')
+    config.registry.api_resource = os.environ.get('RESOURCE', settings.get('api.resource', 'auctions'))
     config.registry.full_url = get_full_url(config.registry)
     config.registry.callback_url = settings.get('callback.url')
     scheduler = Scheduler(jobstores=jobstores,
@@ -138,7 +140,7 @@ def main(global_config, **settings):
                           timezone=TZ)
     if 'jobstore_db' in settings:
         scheduler.add_jobstore('sqlalchemy', url=settings['jobstore_db'])
-    config.registry.planning = bool(int(settings.get('planning', '1')))
+    config.registry.planning = bool(os.environ.get('PLANNING', int(settings.get('planning', '1'))))
     config.registry.scheduler = scheduler
     # scheduler.remove_all_jobs()
     # scheduler.start()
