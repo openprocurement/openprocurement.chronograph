@@ -21,11 +21,11 @@ class SchedulerTest(unittest.TestCase):
         if os.path.isfile(path_to_config):
             conf.read(path_to_config)
             settings = {k: v for k, v in conf.items('app:main')}
-            self.server = Server(settings['couchdb.url'])
+            couchdb_url = os.environ.get('COUCHDB_URL', settings.get('couchdb.url'))
+            self.db_name = os.environ.get('DB_NAME', settings['couchdb.db_name'])
+            self.server = Server(couchdb_url)
             self.settings = settings
-            self.db = self.server[settings['couchdb.db_name']] if \
-                settings['couchdb.db_name'] in self.server else \
-                self.server.create(settings['couchdb.db_name'])
+            self.db = self.server[self.db_name] if self.db_name in self.server else self.server.create(self.db_name)
             sync_design(self.db)
             plantest['_id'] = 'plantest_{}'.format(
                 datetime.now().date().isoformat())
@@ -35,7 +35,7 @@ class SchedulerTest(unittest.TestCase):
 
     def tearDown(self):
         if hasattr(self, 'db'):
-            del self.server[self.settings['couchdb.db_name']]
+            del self.server[self.db_name]
 
     def test_check_inner_auction(self):
         insider_auction_id = '01fa8a7dc4b8eac3b5820747efc6fe36'
